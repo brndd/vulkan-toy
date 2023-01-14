@@ -1,0 +1,7 @@
+# ninja log v5
+0	163	1673725761994838552	CMakeFiles/vkeng.dir/src/main.cpp.o	d5772cbcf7696102
+7	1569	1673725763392894912	CMakeFiles/vkeng.dir/src/vk_initializers.cpp.o	645fbd6f3460f50e
+7	1970	1673725763792911037	CMakeFiles/vkeng.dir/src/vk_engine.cpp.o	9e691e599798e5eb
+1970	4116	1673725765949997996	vkeng	b75e1be8505e99dd
+1	1492	1673725808746723254	CMakeFiles/vkeng.dir/src/main.cpp.o	d5772cbcf7696102
+1492	1531	1673725808795725230	vkeng	b75e1be8505e99dd
