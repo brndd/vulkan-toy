@@ -23,6 +23,24 @@ const bool enableValidationLayers = true;
 const bool enableValidationLayers = false;
 #endif
 
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT messageType,
+        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+        void* pUserData) {
+
+    std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+
+    return VK_FALSE;
+}
+
+static void populateDebugMessageCreateInfo(vk::DebugUtilsMessengerCreateInfoEXT & createInfo) {
+    createInfo.setMessageSeverity(vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError);
+    createInfo.setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance);
+    createInfo.setPfnUserCallback(&debugCallback);
+    createInfo.setPUserData(nullptr);
+}
+
 void VulkanEngine::init() {
     //Initialize SDL window
     SDL_Init(SDL_INIT_VIDEO);
@@ -51,6 +69,7 @@ void VulkanEngine::init() {
 void VulkanEngine::cleanup() {
     if (m_isInitialized) {
         SDL_DestroyWindow(m_window);
+        m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger);
         m_instance.destroy();
     }
 }
@@ -77,8 +96,15 @@ void VulkanEngine::run() {
 }
 
 void VulkanEngine::init_vulkan() {
+    //Initialize DispatchLoaderDynamic stuff (step 1)
+    {
+        vk::DynamicLoader dl;
+        PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
+        VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
+    }
+
     //
-    //Create an instance
+    // Create an instance
     //
     vk::ApplicationInfo appInfo;
     appInfo.pApplicationName = "COOL PROJECT 9000";
@@ -91,6 +117,20 @@ void VulkanEngine::init_vulkan() {
     instanceCreateInfo.pApplicationInfo = &appInfo;
 
     std::vector<const char *> requiredExtensions;
+
+    //Validation layers
+    if (enableValidationLayers) {
+        if (!checkValidationLayerSupport()) {
+            throw std::runtime_error("Validation layers requested but not available.");
+        }
+        instanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        instanceCreateInfo.ppEnabledLayerNames = validationLayers.data();
+
+        requiredExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
+    else {
+        instanceCreateInfo.enabledLayerCount = 0;
+    }
 
     //Get SDL2 extensions
     {
@@ -105,24 +145,39 @@ void VulkanEngine::init_vulkan() {
         }
         requiredExtensions.insert(requiredExtensions.end(), sdlExtensions.begin(), sdlExtensions.end());
     }
-    instanceCreateInfo.enabledExtensionCount = requiredExtensions.size();
+
+    instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
     instanceCreateInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
-    //Validation layers
+    // Set up debug messenger for the instance
     if (enableValidationLayers) {
-        if (!checkValidationLayerSupport()) {
-            throw std::runtime_error("Validation layers requested but not available.");
-        }
+        vk::DebugUtilsMessengerCreateInfoEXT debugCreateInfo;
         instanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         instanceCreateInfo.ppEnabledLayerNames = validationLayers.data();
+
+        populateDebugMessageCreateInfo(debugCreateInfo);
+        instanceCreateInfo.pNext = &debugCreateInfo;
     }
     else {
         instanceCreateInfo.enabledLayerCount = 0;
+        instanceCreateInfo.pNext = nullptr;
     }
 
     m_instance = vk::createInstance(instanceCreateInfo);
-
     std::cout << "Created Vulkan instance." << std::endl;
+
+    //Initialize DispatchLoaderDynamic with the created instance (step 2)
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance);
+
+    //
+    // Set up debug messenger
+    //
+    if (enableValidationLayers) {
+        vk::DebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+        populateDebugMessageCreateInfo(debugCreateInfo);
+
+        m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(debugCreateInfo);
+    }
 }
 
 bool VulkanEngine::checkValidationLayerSupport() {
