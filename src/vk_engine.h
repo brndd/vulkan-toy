@@ -39,6 +39,12 @@ public:
     //Main loop
     void run();
 
+    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+            VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+            VkDebugUtilsMessageTypeFlagsEXT messageType,
+            const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+            void* pUserData);
+
 private:
 
     //
@@ -48,6 +54,10 @@ private:
     void init_vulkan();
 
     bool checkValidationLayerSupport();
+
+    bool isDeviceSuitable(const vk::PhysicalDevice & device);
+
+    int scoreDevice(const vk::PhysicalDevice & device);
 };
 
 

@@ -10,6 +10,7 @@
 #include <thread>
 #include <vector>
 #include <cstring>
+#include <map>
 
 #include "vk_types.h"
 #include "vk_initializers.h"
@@ -23,21 +24,10 @@ const bool enableValidationLayers = true;
 const bool enableValidationLayers = false;
 #endif
 
-static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-        VkDebugUtilsMessageTypeFlagsEXT messageType,
-        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-        void* pUserData) {
-
-    std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
-
-    return VK_FALSE;
-}
-
 static void populateDebugMessageCreateInfo(vk::DebugUtilsMessengerCreateInfoEXT & createInfo) {
     createInfo.setMessageSeverity(vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError);
     createInfo.setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance);
-    createInfo.setPfnUserCallback(&debugCallback);
+    createInfo.setPfnUserCallback(&VulkanEngine::debugCallback);
     createInfo.setPUserData(nullptr);
 }
 
@@ -136,7 +126,7 @@ void VulkanEngine::init_vulkan() {
     {
         uint count = 0;
         SDL_bool res;
-        res = SDL_Vulkan_GetInstanceExtensions(m_window, &count, NULL);
+        res = SDL_Vulkan_GetInstanceExtensions(m_window, &count, nullptr);
         std::vector<const char *> sdlExtensions(count);
         res = SDL_Vulkan_GetInstanceExtensions(m_window, &count, sdlExtensions.data());
         if (res == SDL_FALSE) {
@@ -178,6 +168,28 @@ void VulkanEngine::init_vulkan() {
 
         m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(debugCreateInfo);
     }
+
+    //
+    // Select physical device
+    //
+    auto physicalDevices = m_instance.enumeratePhysicalDevices();
+    if (physicalDevices.empty()) {
+        throw std::runtime_error("Failed to find GPUs with Vulkan support.");
+    }
+
+    std::multimap<int, vk::PhysicalDevice> candidates;
+    for (const auto & device : physicalDevices) {
+        int score = scoreDevice(device);
+        candidates.insert(std::make_pair(score, device));
+    }
+
+    if (candidates.rbegin()->first > 0) {
+        m_activeGPU = candidates.rbegin()->second;
+    }
+
+    if (!m_activeGPU) {
+        throw std::runtime_error("Failed to find a GPU that meets minimum requirements.");
+    }
 }
 
 bool VulkanEngine::checkValidationLayerSupport() {
@@ -199,4 +211,36 @@ bool VulkanEngine::checkValidationLayerSupport() {
     }
 
     return true;
+}
+
+VkBool32 VulkanEngine::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                                     VkDebugUtilsMessageTypeFlagsEXT messageType,
+                                     const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData) {
+
+    std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+
+    return VK_FALSE;
+}
+
+/*
+ * Some crappy scoring system inspired by/stolen from vulkan-tutorial.com
+ * Really I should just use VulkanBootstrap which has a better selector
+ * made by smarter people willing to spend more time on writing a selector.
+ */
+int VulkanEngine::scoreDevice(const vk::PhysicalDevice &device) {
+    auto deviceProperties = device.getProperties();
+    auto deviceFeatures = device.getFeatures();
+    int score = 0;
+
+    if (!deviceFeatures.geometryShader) {
+        return 0;
+    }
+
+    score += deviceProperties.limits.maxImageDimension2D;
+
+    if (deviceProperties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
+        score *= 2;
+    }
+
+    return score;
 }
