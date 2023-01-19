@@ -68,6 +68,7 @@ void VulkanEngine::cleanup() {
         for (auto view : m_swapChainImageViews) {
             m_vkDevice.destroyImageView(view);
         }
+        m_vkDevice.destroyCommandPool(m_commandPool);
         m_vkDevice.destroySwapchainKHR();
         m_vkDevice.destroy();
         m_instance.destroy(m_vkSurface);
@@ -234,7 +235,7 @@ void VulkanEngine::init_vulkan() {
 
         float queuePriority = 1.0f; //FIXME: this seems dodgy
         for (uint32_t queueFamily: uniqueQueueFamilies) {
-            vk::DeviceQueueCreateInfo info;
+            vk::DeviceQueueCreateInfo info = {};
             info.queueFamilyIndex = queueFamily;
             info.queueCount = 1;
             info.pQueuePriorities = &queuePriority;
@@ -242,10 +243,10 @@ void VulkanEngine::init_vulkan() {
         }
 
         //Specify used device features
-        vk::PhysicalDeviceFeatures deviceFeatures;
+        vk::PhysicalDeviceFeatures deviceFeatures = {};
 
         //Actually create the logical device
-        vk::DeviceCreateInfo createInfo;
+        vk::DeviceCreateInfo createInfo = {};
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.pEnabledFeatures = &deviceFeatures;
@@ -280,7 +281,7 @@ void VulkanEngine::init_vulkan() {
             imageCount = swapChainSupport.capabilities.maxImageCount;
         }
 
-        vk::SwapchainCreateInfoKHR createInfo;
+        vk::SwapchainCreateInfoKHR createInfo = {};
         createInfo.surface = m_vkSurface;
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
@@ -328,7 +329,7 @@ void VulkanEngine::init_vulkan() {
     {
         m_swapChainImageViews.resize(m_swapChainImages.size());
         for (auto img: m_swapChainImages) {
-            vk::ImageViewCreateInfo createInfo;
+            vk::ImageViewCreateInfo createInfo = {};
             createInfo.image = img;
             createInfo.viewType = vk::ImageViewType::e2D; //This goes on screen so it's a 2D image
             createInfo.format = m_swapChainImageFormat;
@@ -351,6 +352,37 @@ void VulkanEngine::init_vulkan() {
             m_swapChainImageViews.push_back(imageView);
         }
     }
+
+    //
+    // Create a command pool
+    //
+    {
+        vk::CommandPoolCreateInfo createInfo = {};
+        auto indices = findQueueFamilies(m_activeGPU);
+        //Make this pool one that submits graphics commands
+        createInfo.queueFamilyIndex = indices.graphicsFamily.value();
+        //Allow resetting individual buffers in the pool
+        createInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+        m_commandPool = m_vkDevice.createCommandPool(createInfo);
+    }
+
+    //
+    // Create the command buffer
+    //
+    {
+        vk::CommandBufferAllocateInfo cmdAllocInfo = {};
+        cmdAllocInfo.pNext = nullptr;
+
+        cmdAllocInfo.commandPool = m_commandPool;
+        //Allocate 1 command buffer
+        cmdAllocInfo.commandBufferCount = 1;
+        cmdAllocInfo.level = vk::CommandBufferLevel::ePrimary;
+
+        auto buffers = m_vkDevice.allocateCommandBuffers(cmdAllocInfo);
+        m_commandBuffer = buffers[0]; //this should be alright as we only allocate one buffer
+    }
+
+    std::cout << "Created command pool and command buffer." << std::endl;
 
 }
 

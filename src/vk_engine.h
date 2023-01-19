@@ -43,6 +43,8 @@ public:
     vk::Format m_swapChainImageFormat;
     vk::Extent2D m_swapChainExtent;
     std::vector<vk::ImageView> m_swapChainImageViews;
+    vk::CommandPool m_commandPool;
+    vk::CommandBuffer m_commandBuffer;
 
 
 
