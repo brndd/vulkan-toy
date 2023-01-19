@@ -59,6 +59,7 @@ void VulkanEngine::init() {
 void VulkanEngine::cleanup() {
     if (m_isInitialized) {
         SDL_DestroyWindow(m_window);
+        m_vkDevice.destroy();
         m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger);
         m_instance.destroy();
     }
@@ -190,6 +191,43 @@ void VulkanEngine::init_vulkan() {
     if (!m_activeGPU) {
         throw std::runtime_error("Failed to find a GPU that meets minimum requirements.");
     }
+
+    std::cout << "Using physical device " << m_activeGPU.getProperties().deviceName << "." << std::endl;
+
+    //
+    // Create logical device (vk::Device)
+    //
+    //Specify queues
+    auto indices = findQueueFamilies(m_activeGPU);
+    vk::DeviceQueueCreateInfo queueCreateInfo;
+    queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+    queueCreateInfo.queueCount = 1;
+    float queuePriority = 1.0; //FIXME: this seems dodgy
+    queueCreateInfo.pQueuePriorities = &queuePriority;
+
+    //Specify used device features
+    vk::PhysicalDeviceFeatures deviceFeatures;
+
+    //Actually create the logical device
+    vk::DeviceCreateInfo createInfo;
+    createInfo.pQueueCreateInfos = &queueCreateInfo;
+    createInfo.queueCreateInfoCount = 1;
+    createInfo.pEnabledFeatures = &deviceFeatures;
+
+    createInfo.enabledExtensionCount = 0;
+    if (enableValidationLayers) {
+        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        createInfo.ppEnabledLayerNames = validationLayers.data();
+    }
+    else {
+        createInfo.enabledLayerCount = 0;
+    }
+
+    m_vkDevice = m_activeGPU.createDevice(createInfo);
+    m_graphicsQueue = m_vkDevice.getQueue(indices.graphicsFamily.value(), 0);
+
+    std::cout << "Created logical device " << m_vkDevice << "." << std::endl;
+
 }
 
 bool VulkanEngine::checkValidationLayerSupport() {
@@ -232,7 +270,13 @@ int VulkanEngine::scoreDevice(const vk::PhysicalDevice &device) {
     auto deviceFeatures = device.getFeatures();
     int score = 0;
 
+    //The device must have a geometry shader to be useful
     if (!deviceFeatures.geometryShader) {
+        return 0;
+    }
+    //The device must support a queue family with VK_QUEUE_GRAPHICS_BIT to be useful
+    QueueFamilyIndices indices = findQueueFamilies(device);
+    if (!indices.isComplete()) {
         return 0;
     }
 
@@ -243,4 +287,21 @@ int VulkanEngine::scoreDevice(const vk::PhysicalDevice &device) {
     }
 
     return score;
+}
+
+QueueFamilyIndices VulkanEngine::findQueueFamilies(const vk::PhysicalDevice &device) {
+    QueueFamilyIndices indices;
+
+    auto families = device.getQueueFamilyProperties();
+    int i = 0;
+    for (auto it = families.begin(); it != families.end(); it++, i++) {
+        if (it->queueFlags & vk::QueueFlagBits::eGraphics) {
+            indices.graphicsFamily = i;
+        }
+        if (indices.isComplete()) {
+            break;
+        }
+    }
+
+    return indices;
 }

@@ -2,7 +2,16 @@
 #define VKENG_VK_ENGINE_H
 
 
+#include <optional>
 #include "vk_types.h"
+
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+
+    bool isComplete() const {
+        return graphicsFamily.has_value();
+    }
+};
 
 class VulkanEngine {
 public:
@@ -20,6 +29,7 @@ public:
     vk::PhysicalDevice m_activeGPU;
     vk::Device m_vkDevice;
     vk::SurfaceKHR m_vkSurface;
+    vk::Queue m_graphicsQueue;
 
 
 
@@ -55,9 +65,9 @@ private:
 
     bool checkValidationLayerSupport();
 
-    bool isDeviceSuitable(const vk::PhysicalDevice & device);
-
     int scoreDevice(const vk::PhysicalDevice & device);
+
+    static QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice & device);
 };
 
 
