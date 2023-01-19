@@ -7,9 +7,10 @@
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentFamily;
 
     bool isComplete() const {
-        return graphicsFamily.has_value();
+        return graphicsFamily.has_value() && presentFamily.has_value();
     }
 };
 
@@ -30,6 +31,7 @@ public:
     vk::Device m_vkDevice;
     vk::SurfaceKHR m_vkSurface;
     vk::Queue m_graphicsQueue;
+    vk::Queue m_presentQueue;
 
 
 
@@ -67,7 +69,7 @@ private:
 
     int scoreDevice(const vk::PhysicalDevice & device);
 
-    static QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice & device);
+    QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice & device);
 };
 
 

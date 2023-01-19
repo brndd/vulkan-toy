@@ -11,6 +11,7 @@
 #include <vector>
 #include <cstring>
 #include <map>
+#include <set>
 
 #include "vk_types.h"
 #include "vk_initializers.h"
@@ -60,6 +61,7 @@ void VulkanEngine::cleanup() {
     if (m_isInitialized) {
         SDL_DestroyWindow(m_window);
         m_vkDevice.destroy();
+        m_instance.destroy(m_vkSurface);
         m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger);
         m_instance.destroy();
     }
@@ -161,6 +163,17 @@ void VulkanEngine::init_vulkan() {
     VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance);
 
     //
+    // Create surface
+    //
+    {
+        SDL_bool res = SDL_Vulkan_CreateSurface(m_window, m_instance, reinterpret_cast<VkSurfaceKHR *>(&m_vkSurface));
+        if (res == SDL_FALSE) {
+            std::cout << "SDL_GetError says: " << SDL_GetError() << std::endl;
+            throw std::runtime_error("Creating SDL surface failed.");
+        }
+    }
+
+    //
     // Set up debug messenger
     //
     if (enableValidationLayers) {
@@ -199,19 +212,26 @@ void VulkanEngine::init_vulkan() {
     //
     //Specify queues
     auto indices = findQueueFamilies(m_activeGPU);
-    vk::DeviceQueueCreateInfo queueCreateInfo;
-    queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-    queueCreateInfo.queueCount = 1;
-    float queuePriority = 1.0; //FIXME: this seems dodgy
-    queueCreateInfo.pQueuePriorities = &queuePriority;
+
+    std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
+    std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+
+    float queuePriority = 1.0f; //FIXME: this seems dodgy
+    for (uint32_t queueFamily : uniqueQueueFamilies) {
+        vk::DeviceQueueCreateInfo info;
+        info.queueFamilyIndex = queueFamily;
+        info.queueCount = 1;
+        info.pQueuePriorities = &queuePriority;
+        queueCreateInfos.push_back(info);
+    }
 
     //Specify used device features
     vk::PhysicalDeviceFeatures deviceFeatures;
 
     //Actually create the logical device
     vk::DeviceCreateInfo createInfo;
-    createInfo.pQueueCreateInfos = &queueCreateInfo;
-    createInfo.queueCreateInfoCount = 1;
+    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+    createInfo.pQueueCreateInfos = queueCreateInfos.data();
     createInfo.pEnabledFeatures = &deviceFeatures;
 
     createInfo.enabledExtensionCount = 0;
@@ -225,6 +245,7 @@ void VulkanEngine::init_vulkan() {
 
     m_vkDevice = m_activeGPU.createDevice(createInfo);
     m_graphicsQueue = m_vkDevice.getQueue(indices.graphicsFamily.value(), 0);
+    m_presentQueue = m_vkDevice.getQueue(indices.presentFamily.value(), 0);
 
     std::cout << "Created logical device " << m_vkDevice << "." << std::endl;
 
@@ -297,6 +318,9 @@ QueueFamilyIndices VulkanEngine::findQueueFamilies(const vk::PhysicalDevice &dev
     for (auto it = families.begin(); it != families.end(); it++, i++) {
         if (it->queueFlags & vk::QueueFlagBits::eGraphics) {
             indices.graphicsFamily = i;
+        }
+        if (device.getSurfaceSupportKHR(i, m_vkSurface)) {
+            indices.presentFamily = i;
         }
         if (indices.isComplete()) {
             break;
