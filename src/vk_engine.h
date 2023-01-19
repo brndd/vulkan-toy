@@ -42,6 +42,7 @@ public:
     std::vector<vk::Image> m_swapChainImages;
     vk::Format m_swapChainImageFormat;
     vk::Extent2D m_swapChainExtent;
+    std::vector<vk::ImageView> m_swapChainImageViews;
 
 
 

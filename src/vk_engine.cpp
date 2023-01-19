@@ -65,6 +65,9 @@ void VulkanEngine::init() {
 void VulkanEngine::cleanup() {
     if (m_isInitialized) {
         SDL_DestroyWindow(m_sdlWindow);
+        for (auto view : m_swapChainImageViews) {
+            m_vkDevice.destroyImageView(view);
+        }
         m_vkDevice.destroySwapchainKHR();
         m_vkDevice.destroy();
         m_instance.destroy(m_vkSurface);
@@ -319,7 +322,35 @@ void VulkanEngine::init_vulkan() {
         std::cout << "Created swap chain." << std::endl;
     }
 
+    //
+    // Create swap chain image views
+    //
+    {
+        m_swapChainImageViews.resize(m_swapChainImages.size());
+        for (auto img: m_swapChainImages) {
+            vk::ImageViewCreateInfo createInfo;
+            createInfo.image = img;
+            createInfo.viewType = vk::ImageViewType::e2D; //This goes on screen so it's a 2D image
+            createInfo.format = m_swapChainImageFormat;
 
+            //Default swizzle mapping
+            createInfo.components.r = vk::ComponentSwizzle::eIdentity;
+            createInfo.components.g = vk::ComponentSwizzle::eIdentity;
+            createInfo.components.b = vk::ComponentSwizzle::eIdentity;
+            createInfo.components.a = vk::ComponentSwizzle::eIdentity;
+
+            //These images are "colour targets without any mipmapping levels or multiple layers."
+            //For something like VR, we would use multiple layers for the stereoscopic effect.
+            createInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+            createInfo.subresourceRange.baseMipLevel = 0;
+            createInfo.subresourceRange.levelCount = 1;
+            createInfo.subresourceRange.baseArrayLayer = 0;
+            createInfo.subresourceRange.layerCount = 1;
+
+            vk::ImageView imageView = m_vkDevice.createImageView(createInfo);
+            m_swapChainImageViews.push_back(imageView);
+        }
+    }
 
 }
 
