@@ -14,6 +14,12 @@ struct QueueFamilyIndices {
     }
 };
 
+struct SwapChainSupportDetails {
+    vk::SurfaceCapabilitiesKHR capabilities;
+    std::vector<vk::SurfaceFormatKHR> formats;
+    std::vector<vk::PresentModeKHR> presentModes;
+};
+
 class VulkanEngine {
 public:
     //
@@ -21,7 +27,7 @@ public:
     //
     bool m_isInitialized{false};
     int m_frameNumber {0};
-    struct SDL_Window* m_window{nullptr};
+    struct SDL_Window* m_sdlWindow{nullptr};
 
     // Vulkan members and handles
     vk::Extent2D m_windowExtent{640, 480};
@@ -32,6 +38,10 @@ public:
     vk::SurfaceKHR m_vkSurface;
     vk::Queue m_graphicsQueue;
     vk::Queue m_presentQueue;
+    vk::SwapchainKHR m_swapChain;
+    std::vector<vk::Image> m_swapChainImages;
+    vk::Format m_swapChainImageFormat;
+    vk::Extent2D m_swapChainExtent;
 
 
 
@@ -67,9 +77,19 @@ private:
 
     bool checkValidationLayerSupport();
 
+    bool checkDeviceExtensionSupport(const vk::PhysicalDevice & device);
+
     int scoreDevice(const vk::PhysicalDevice & device);
 
     QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice & device);
+
+    //Swap chain functions
+    SwapChainSupportDetails querySwapChainSupport(const vk::PhysicalDevice & device);
+    vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats);
+    vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availableModes);
+    vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR & capabilities);
+
+
 };
 
 
