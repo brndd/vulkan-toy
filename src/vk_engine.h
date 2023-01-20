@@ -23,7 +23,30 @@ struct SwapChainSupportDetails {
 class VulkanEngine {
 public:
     //
-    // Members
+    // Public methods
+    //
+
+    //Initialize engine
+    void init();
+
+    //Shut down and clean up
+    void cleanup();
+
+    //Draw loop
+    void draw();
+
+    //Main loop
+    void run();
+
+    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+            VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+            VkDebugUtilsMessageTypeFlagsEXT messageType,
+            const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+            void* pUserData);
+
+private:
+    //
+    // Private members
     //
     bool m_isInitialized{false};
     int m_frameNumber {0};
@@ -47,31 +70,8 @@ public:
     vk::CommandBuffer m_mainCommandBuffer;
     vk::RenderPass m_renderPass;
     std::vector<vk::Framebuffer> m_framebuffers;
-
-
-    //
-    // Public methods
-    //
-
-    //Initialize engine
-    void init();
-
-    //Shut down and clean up
-    void cleanup();
-
-    //Draw loop
-    void draw();
-
-    //Main loop
-    void run();
-
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-            VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-            VkDebugUtilsMessageTypeFlagsEXT messageType,
-            const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-            void* pUserData);
-
-private:
+    vk::Semaphore m_presentSemaphore, m_renderSemaphore;
+    vk::Fence m_renderFence;
 
     //
     // Private methods
@@ -111,6 +111,8 @@ private:
     void init_default_render_pass();
 
     void init_framebuffers();
+
+    void init_sync_structures();
 };
 
 

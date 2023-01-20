@@ -58,6 +58,7 @@ void VulkanEngine::init() {
         std::cout << "Created SDL window." << std::endl;
     }
     init_vulkan();
+    init_sync_structures();
 
     m_isInitialized = true;
 }
@@ -82,7 +83,69 @@ void VulkanEngine::cleanup() {
 }
 
 void VulkanEngine::draw() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    //Wait until the GPU has rendered the previous frame, with a timeout of 1 second.
+    //FIXME: there must be a better way than writing 10^9 when I really want 1 second. A neat macro or something.
+    m_vkDevice.waitForFences(m_renderFence, true, 1000000000);
+    m_vkDevice.resetFences(m_renderFence);
+
+    //Request image from swapchain with one second timeout. FIXME: nanosecond stuff, also this value thing should be handled properly (check the ResultValue object in a switch case)
+    uint32_t swapChainImgIndex = m_vkDevice.acquireNextImageKHR(m_swapChain, 1000000000, m_presentSemaphore).value;
+
+
+    //Reset the command buffer now that commands are done executing.
+    auto & cmd = m_mainCommandBuffer;
+    cmd.reset();
+
+    //Tell Vulkan we will only use this once
+    vk::CommandBufferBeginInfo cmdBeginInfo = {};
+    cmdBeginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+
+    cmd.begin(cmdBeginInfo);
+
+    vk::ClearValue clearValue = {};
+    float flash = abs(sin(m_frameNumber / 120.0f));
+    const std::array<float, 4> cols = {0.0f, 0.0f, flash, 1.0f};
+    clearValue.color = {cols};
+
+    //Start the main render pass
+    vk::RenderPassBeginInfo rpInfo = {};
+    rpInfo.renderPass = m_renderPass;
+    rpInfo.renderArea.offset.x = 0;
+    rpInfo.renderArea.offset.y = 0;
+    rpInfo.renderArea.extent = m_swapChainExtent;
+    rpInfo.framebuffer = m_framebuffers[swapChainImgIndex];
+
+    //connect clear values
+    rpInfo.clearValueCount = 1;
+    rpInfo.pClearValues = &clearValue;
+
+    cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
+
+    //Finalize the render pass
+    cmd.endRenderPass();
+    //Finalize the command buffer (can no longer add commands, but it can be executed)
+    cmd.end();
+
+    //Submit command buffer to GPU
+    vk::SubmitInfo submitInfo = {};
+    vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+    submitInfo.pWaitDstStageMask = &waitStage;
+    submitInfo.setWaitSemaphores(m_presentSemaphore);
+    submitInfo.setSignalSemaphores(m_renderSemaphore);
+    submitInfo.setCommandBuffers(cmd);
+
+    //Submit command buffer to the queue and execute it.
+    //m_renderFence will now block until the graphic commands finish execution.
+    m_graphicsQueue.submit(submitInfo, m_renderFence);
+
+    //Finally, display the image on the screen.
+    vk::PresentInfoKHR presentInfo = {};
+    presentInfo.setSwapchains(m_swapChain);
+    presentInfo.setWaitSemaphores(m_renderSemaphore);
+    presentInfo.setImageIndices(swapChainImgIndex);
+    m_graphicsQueue.presentKHR(presentInfo);
+
+    m_frameNumber++;
 }
 
 void VulkanEngine::run() {
@@ -459,6 +522,17 @@ void VulkanEngine::init_framebuffers() {
     std::cout << "Initialized " << m_framebuffers.size() << " framebuffers." << std::endl;
 }
 
+void VulkanEngine::init_sync_structures() {
+    vk::FenceCreateInfo fenceInfo = {};
+    //This allows us to wait on the fence on first use
+    fenceInfo.flags = vk::FenceCreateFlagBits::eSignaled;
+    m_renderFence = m_vkDevice.createFence(fenceInfo);
+
+    vk::SemaphoreCreateInfo semaphoreInfo = {};
+    m_presentSemaphore = m_vkDevice.createSemaphore(semaphoreInfo);
+    m_renderSemaphore = m_vkDevice.createSemaphore(semaphoreInfo);
+}
+
 /*
  * Initializes Vulkan. I honestly couldn't tell you what half this boilerplate does; I wrote it by following along with
  * https://vulkan-tutorial.com and https://vkguide.dev, and it's... it's a lot to take in.
@@ -623,4 +697,3 @@ vk::Extent2D VulkanEngine::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &ca
     }
 
 }
-
