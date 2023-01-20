@@ -98,11 +98,7 @@ void VulkanEngine::run() {
     }
 }
 
-/*
- * Initializes Vulkan. I honestly couldn't tell you what half this boilerplate does; I wrote it by following along with
- * https://vulkan-tutorial.com
- */
-void VulkanEngine::init_vulkan() {
+void VulkanEngine::create_instance() {
     //Initialize DispatchLoaderDynamic stuff (step 1)
     {
         vk::DynamicLoader dl;
@@ -175,7 +171,9 @@ void VulkanEngine::init_vulkan() {
         //Initialize DispatchLoaderDynamic with the created instance (step 2)
         VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance);
     }
+}
 
+void VulkanEngine::create_surface() {
     //
     // Create surface
     //
@@ -186,7 +184,9 @@ void VulkanEngine::init_vulkan() {
             throw std::runtime_error("Creating SDL surface failed.");
         }
     }
+}
 
+void VulkanEngine::create_debugmessenger() {
     //
     // Set up debug messenger
     //
@@ -196,7 +196,9 @@ void VulkanEngine::init_vulkan() {
 
         m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(debugCreateInfo);
     }
+}
 
+void VulkanEngine::select_physical_device() {
     //
     // Select physical device
     //
@@ -222,7 +224,9 @@ void VulkanEngine::init_vulkan() {
 
         std::cout << "Using physical device " << m_activeGPU.getProperties().deviceName << "." << std::endl;
     }
+}
 
+void VulkanEngine::create_logical_device() {
     //
     // Create logical device (vk::Device)
     //
@@ -266,7 +270,9 @@ void VulkanEngine::init_vulkan() {
 
         std::cout << "Created logical device " << m_vkDevice << "." << std::endl;
     }
+}
 
+void VulkanEngine::create_swap_chain() {
     //
     // Create swap chain
     //
@@ -352,7 +358,9 @@ void VulkanEngine::init_vulkan() {
             m_swapChainImageViews.push_back(imageView);
         }
     }
+}
 
+void VulkanEngine::create_command_pool_and_buffer() {
     //
     // Create a command pool
     //
@@ -379,11 +387,29 @@ void VulkanEngine::init_vulkan() {
         cmdAllocInfo.level = vk::CommandBufferLevel::ePrimary;
 
         auto buffers = m_vkDevice.allocateCommandBuffers(cmdAllocInfo);
-        m_commandBuffer = buffers[0]; //this should be alright as we only allocate one buffer
+        m_mainCommandBuffer = buffers[0]; //this should be alright as we only allocate one buffer
     }
 
     std::cout << "Created command pool and command buffer." << std::endl;
+}
 
+void VulkanEngine::create_graphics_pipeline() {
+
+}
+
+/*
+ * Initializes Vulkan. I honestly couldn't tell you what half this boilerplate does; I wrote it by following along with
+ * https://vulkan-tutorial.com
+ */
+void VulkanEngine::init_vulkan() {
+    create_instance();
+    create_surface();
+    create_debugmessenger();
+    select_physical_device();
+    create_logical_device();
+    create_swap_chain();
+    create_command_pool_and_buffer();
+    create_graphics_pipeline();
 }
 
 bool VulkanEngine::checkValidationLayerSupport() {

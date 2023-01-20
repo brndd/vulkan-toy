@@ -44,7 +44,7 @@ public:
     vk::Extent2D m_swapChainExtent;
     std::vector<vk::ImageView> m_swapChainImageViews;
     vk::CommandPool m_commandPool;
-    vk::CommandBuffer m_commandBuffer;
+    vk::CommandBuffer m_mainCommandBuffer;
 
 
 
@@ -93,6 +93,21 @@ private:
     vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR & capabilities);
 
 
+    void create_instance();
+
+    void create_surface();
+
+    void create_debugmessenger();
+
+    void select_physical_device();
+
+    void create_logical_device();
+
+    void create_swap_chain();
+
+    void create_command_pool_and_buffer();
+
+    void create_graphics_pipeline();
 };
 
 
