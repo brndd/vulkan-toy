@@ -45,7 +45,8 @@ public:
     std::vector<vk::ImageView> m_swapChainImageViews;
     vk::CommandPool m_commandPool;
     vk::CommandBuffer m_mainCommandBuffer;
-
+    vk::RenderPass m_renderPass;
+    std::vector<vk::Framebuffer> m_framebuffers;
 
 
     //
@@ -107,7 +108,9 @@ private:
 
     void create_command_pool_and_buffer();
 
-    void create_graphics_pipeline();
+    void init_default_render_pass();
+
+    void init_framebuffers();
 };
 
 

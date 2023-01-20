@@ -65,9 +65,13 @@ void VulkanEngine::init() {
 void VulkanEngine::cleanup() {
     if (m_isInitialized) {
         SDL_DestroyWindow(m_sdlWindow);
-        for (auto view : m_swapChainImageViews) {
-            m_vkDevice.destroyImageView(view);
+        for (const auto & fb : m_framebuffers) {
+            m_vkDevice.destroyFramebuffer(fb);
         }
+        for (const auto & imageView : m_swapChainImageViews) {
+            m_vkDevice.destroyImageView(imageView);
+        }
+        m_vkDevice.destroyRenderPass(m_renderPass);
         m_vkDevice.destroyCommandPool(m_commandPool);
         m_vkDevice.destroySwapchainKHR();
         m_vkDevice.destroy();
@@ -332,32 +336,29 @@ void VulkanEngine::create_swap_chain() {
     //
     // Create swap chain image views
     //
-    {
-        m_swapChainImageViews.resize(m_swapChainImages.size());
-        for (auto img: m_swapChainImages) {
-            vk::ImageViewCreateInfo createInfo = {};
-            createInfo.image = img;
-            createInfo.viewType = vk::ImageViewType::e2D; //This goes on screen so it's a 2D image
-            createInfo.format = m_swapChainImageFormat;
+    for (auto img: m_swapChainImages) {
+        vk::ImageViewCreateInfo createInfo = {};
+        createInfo.image = img;
+        createInfo.viewType = vk::ImageViewType::e2D; //This goes on screen so it's a 2D image
+        createInfo.format = m_swapChainImageFormat;
 
-            //Default swizzle mapping
-            createInfo.components.r = vk::ComponentSwizzle::eIdentity;
-            createInfo.components.g = vk::ComponentSwizzle::eIdentity;
-            createInfo.components.b = vk::ComponentSwizzle::eIdentity;
-            createInfo.components.a = vk::ComponentSwizzle::eIdentity;
+        //Default swizzle mapping
+        createInfo.components.r = vk::ComponentSwizzle::eIdentity;
+        createInfo.components.g = vk::ComponentSwizzle::eIdentity;
+        createInfo.components.b = vk::ComponentSwizzle::eIdentity;
+        createInfo.components.a = vk::ComponentSwizzle::eIdentity;
 
-            //These images are "colour targets without any mipmapping levels or multiple layers."
-            //For something like VR, we would use multiple layers for the stereoscopic effect.
-            createInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-            createInfo.subresourceRange.baseMipLevel = 0;
-            createInfo.subresourceRange.levelCount = 1;
-            createInfo.subresourceRange.baseArrayLayer = 0;
-            createInfo.subresourceRange.layerCount = 1;
+        //These images are "colour targets without any mipmapping levels or multiple layers."
+        //For something like VR, we would use multiple layers for the stereoscopic effect.
+        createInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.layerCount = 1;
 
-            vk::ImageView imageView = m_vkDevice.createImageView(createInfo);
-            m_swapChainImageViews.push_back(imageView);
-        }
+        m_swapChainImageViews.emplace_back(m_vkDevice.createImageView(createInfo));
     }
+    std::cout << "Created " << m_swapChainImageViews.size() << " swap chain image views." << std::endl;
 }
 
 void VulkanEngine::create_command_pool_and_buffer() {
@@ -393,13 +394,74 @@ void VulkanEngine::create_command_pool_and_buffer() {
     std::cout << "Created command pool and command buffer." << std::endl;
 }
 
-void VulkanEngine::create_graphics_pipeline() {
+void VulkanEngine::init_default_render_pass() {
+    //Quoting vkguide.dev:
+    //The image life will go something like this:
+    //UNDEFINED -> RenderPass Begins -> Subpass 0 begins (Transition to Attachment Optimal) -> Subpass 0 renders -> Subpass 0 ends -> Renderpass Ends (Transitions to Present Source)
 
+    vk::AttachmentDescription colorAttachment = {};
+    colorAttachment.format = m_swapChainImageFormat;
+    //Only 1 sample as we won't be doing MSAA (yet)
+    colorAttachment.samples = vk::SampleCountFlagBits::e1;
+    //Clear when attachment is loaded
+    colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+    //Store when render pass ends
+    colorAttachment.storeOp = vk::AttachmentStoreOp::eStore;
+    //Don't care about these (yet?)
+    colorAttachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+    colorAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+
+    //Don't know or care about the starting layout
+    colorAttachment.initialLayout = vk::ImageLayout::eUndefined;
+
+    //After the render pass is through, the image has to be presentable to the screen
+    colorAttachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+
+    vk::AttachmentReference colorAttachmentRef = {};
+    //This will index into the pAttachments array in the parent render pass
+    colorAttachmentRef.attachment = 0;
+    colorAttachmentRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
+
+    //Create 1 subpass (the minimum)
+    vk::SubpassDescription subpass = {};
+    subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentRef;
+
+    //Finally, create the actual render pass
+    vk::RenderPassCreateInfo createInfo = {};
+    createInfo.attachmentCount = 1;
+    createInfo.pAttachments = &colorAttachment;
+    createInfo.subpassCount = 1;
+    createInfo.pSubpasses = &subpass;
+
+    m_renderPass = m_vkDevice.createRenderPass(createInfo);
+}
+
+void VulkanEngine::init_framebuffers() {
+    vk::FramebufferCreateInfo fbInfo = {};
+    fbInfo.pNext = nullptr;
+    fbInfo.renderPass = m_renderPass;
+    fbInfo.attachmentCount = 1;
+    fbInfo.width = m_swapChainExtent.width;
+    fbInfo.height = m_swapChainExtent.height;
+    fbInfo.layers = 1;
+
+    const auto swapchainImageCount = m_swapChainImages.size();
+    //m_framebuffers = std::vector<vk::Framebuffer>(swapchainImageCount);
+
+    //Create a framebuffer for each swap chain image view
+    //for (int i = 0; i < swapchainImageCount; i++) {
+    for (const auto & view : m_swapChainImageViews) {
+        fbInfo.pAttachments = &view;
+        m_framebuffers.emplace_back(m_vkDevice.createFramebuffer(fbInfo));
+    }
+    std::cout << "Initialized " << m_framebuffers.size() << " framebuffers." << std::endl;
 }
 
 /*
  * Initializes Vulkan. I honestly couldn't tell you what half this boilerplate does; I wrote it by following along with
- * https://vulkan-tutorial.com
+ * https://vulkan-tutorial.com and https://vkguide.dev, and it's... it's a lot to take in.
  */
 void VulkanEngine::init_vulkan() {
     create_instance();
@@ -409,7 +471,8 @@ void VulkanEngine::init_vulkan() {
     create_logical_device();
     create_swap_chain();
     create_command_pool_and_buffer();
-    create_graphics_pipeline();
+    init_default_render_pass();
+    init_framebuffers();
 }
 
 bool VulkanEngine::checkValidationLayerSupport() {
