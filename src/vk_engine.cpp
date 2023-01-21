@@ -65,6 +65,7 @@ void VulkanEngine::init() {
 
 void VulkanEngine::cleanup() {
     if (m_isInitialized) {
+        m_vkDevice.waitIdle();
         SDL_DestroyWindow(m_sdlWindow);
         for (const auto & fb : m_framebuffers) {
             m_vkDevice.destroyFramebuffer(fb);
@@ -72,6 +73,9 @@ void VulkanEngine::cleanup() {
         for (const auto & imageView : m_swapChainImageViews) {
             m_vkDevice.destroyImageView(imageView);
         }
+        m_vkDevice.destroySemaphore(m_renderSemaphore);
+        m_vkDevice.destroySemaphore(m_presentSemaphore);
+        m_vkDevice.destroyFence(m_renderFence);
         m_vkDevice.destroyRenderPass(m_renderPass);
         m_vkDevice.destroyCommandPool(m_commandPool);
         m_vkDevice.destroySwapchainKHR();
