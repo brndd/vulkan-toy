@@ -21,6 +21,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 find_package(SDL2 REQUIRED)
 include_directories(${SDL2_INCLUDE_DIRS})
 
+#Include 3rd party source libs with the SYSTEM keyword
+#this silences warnings from them and lets us #include them with the bracket notation rather than quotes
+include_directories(SYSTEM "src/3rd_party")
+
 #Include Vulkan
 find_package(Vulkan REQUIRED)
 
@@ -46,6 +50,6 @@ endforeach(GLSL)
 add_custom_target(shaders DEPENDS ${SPIRV_BINARY_FILES})
 
 #Add main compilation target
-add_executable(vkeng src/main.cpp src/vk_engine.cpp src/vk_engine.h src/vk_initializers.cpp src/vk_initializers.h src/vk_types.h src/lib/vk_mem_alloc.cpp src/lib/vk_mem_alloc.h)
+add_executable(vkeng src/main.cpp src/vk_engine.cpp src/vk_engine.h src/vk_initializers.cpp src/vk_initializers.h src/vk_types.h src/3rd_party/vk_mem_alloc.cpp)
 target_link_libraries(vkeng ${Vulkan_LIBRARIES} ${SDL2_LIBRARIES}) #Depends on SDL2 and Vulkan
 add_dependencies(vkeng shaders) #Depends on shaders being compiled

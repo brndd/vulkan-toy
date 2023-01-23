@@ -1,6 +1,6 @@
 #include "vk_engine.h"
 
-#include "lib/vk_mem_alloc.h"
+#include <vk_mem_alloc.h>
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
