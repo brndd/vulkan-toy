@@ -12,6 +12,7 @@
 #include <cstring>
 #include <map>
 #include <set>
+#include <fstream>
 
 #include "vk_types.h"
 #include "vk_initializers.h"
@@ -707,4 +708,26 @@ vk::Extent2D VulkanEngine::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &ca
         return actualExtent;
     }
 
+}
+
+vk::ShaderModule VulkanEngine::load_shader_module(const char *filePath) {
+    std::ifstream file(filePath, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open shader file.");
+    }
+
+    size_t fileSize = file.tellg(); //File size in bytes
+    std::vector<uint32_t> code(fileSize / sizeof(uint32_t));
+
+    //Load the entire file into the buffer and close the file
+    file.seekg(0);
+    file.read((char*) code.data(), fileSize);
+    file.close();
+
+    vk::ShaderModuleCreateInfo info = {};
+    info.setCode(code);
+
+    vk::ShaderModule module = m_vkDevice.createShaderModule(info);
+    return module;
 }

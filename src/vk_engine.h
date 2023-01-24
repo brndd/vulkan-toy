@@ -113,6 +113,9 @@ private:
     void init_framebuffers();
 
     void init_sync_structures();
+
+    //This will throw if the shader modules fail to load.
+    vk::ShaderModule load_shader_module(const char * filePath);
 };
 
 
