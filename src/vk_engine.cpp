@@ -61,6 +61,8 @@ void VulkanEngine::init() {
     init_vulkan();
     init_sync_structures();
 
+    init_pipelines();
+
     m_isInitialized = true;
 }
 
@@ -728,6 +730,18 @@ vk::ShaderModule VulkanEngine::load_shader_module(const char *filePath) {
     vk::ShaderModuleCreateInfo info = {};
     info.setCode(code);
 
-    vk::ShaderModule module = m_vkDevice.createShaderModule(info);
+    vk::ShaderModule module = m_vkDevice.createShaderModule(info); //FIXME: ensure that any resources are cleaned up if this throws (not sure if necessary)
     return module;
+}
+
+void VulkanEngine::init_pipelines() {
+    try {
+        vk::ShaderModule triangleFragShader = load_shader_module("shaders/hellotriangle.frag.spv");
+        vk::ShaderModule triangleVertShader = load_shader_module("shaders/hellotriangle.vert.spv");
+
+    } catch(std::exception const &e) {
+        std::cout << "Failed to load shaders: " << e.what() << std::endl;
+    }
+    std::cout << "Loaded shaders." << std::endl;
+
 }

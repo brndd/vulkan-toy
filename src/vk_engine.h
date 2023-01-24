@@ -114,6 +114,8 @@ private:
 
     void init_sync_structures();
 
+    void init_pipelines();
+
     //This will throw if the shader modules fail to load.
     vk::ShaderModule load_shader_module(const char * filePath);
 };
