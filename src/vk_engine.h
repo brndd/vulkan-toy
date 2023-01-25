@@ -73,6 +73,9 @@ private:
     vk::Semaphore m_presentSemaphore, m_renderSemaphore;
     vk::Fence m_renderFence;
 
+    vk::PipelineLayout m_trianglePipelineLayout;
+    vk::Pipeline m_trianglePipeline;
+
     //
     // Private methods
     //
@@ -120,5 +123,22 @@ private:
     vk::ShaderModule load_shader_module(const char * filePath);
 };
 
+//sweet lord what is happening in here??
+//Thank you vkguide.dev
+class PipelineBuilder {
+public:
+    std::vector<vk::PipelineShaderStageCreateInfo> m_shaderStageInfos;
+    vk::PipelineVertexInputStateCreateInfo m_vertexInputInfo;
+    vk::PipelineInputAssemblyStateCreateInfo m_inputAssemblyInfo;
+    vk::Viewport m_viewport;
+    vk::Rect2D m_scissor;
+    vk::PipelineRasterizationStateCreateInfo m_rasterizerInfo;
+    vk::PipelineColorBlendAttachmentState m_colorBlendAttachmentState;
+    vk::PipelineMultisampleStateCreateInfo m_multisampleInfo;
+    vk::PipelineLayout m_pipelineLayout;
+
+    vk::Pipeline build_pipeline(vk::Device device, vk::RenderPass pass);
+
+};
 
 #endif //VKENG_VK_ENGINE_H
