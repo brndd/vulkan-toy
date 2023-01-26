@@ -48,9 +48,10 @@ private:
     //
     // Private members
     //
-    bool m_isInitialized{false};
-    int m_frameNumber {0};
-    struct SDL_Window* m_sdlWindow{nullptr};
+    bool m_isInitialized = false;
+    int m_frameNumber = 0;
+    struct SDL_Window* m_sdlWindow = nullptr;
+    int m_selectedShader = 0;
 
     // Vulkan members and handles
     vk::Extent2D m_windowExtent{640, 480};
@@ -75,6 +76,7 @@ private:
 
     vk::PipelineLayout m_trianglePipelineLayout;
     vk::Pipeline m_trianglePipeline;
+    vk::Pipeline m_triangle2Pipeline;
 
     //
     // Private methods

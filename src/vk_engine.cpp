@@ -136,7 +136,12 @@ void VulkanEngine::draw() {
     cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 
     //Render commands go here
-    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_trianglePipeline);
+    if (m_selectedShader == 0) {
+        cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_trianglePipeline);
+    }
+    else {
+        cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_triangle2Pipeline);
+    }
     cmd.draw(3, 1, 0, 0); // draw 1 object with 3 vertices
 
     //Finalize the render pass
@@ -175,7 +180,13 @@ void VulkanEngine::run() {
             if (e.type == SDL_QUIT)
                 bQuit = true;
             else if (e.type == SDL_KEYDOWN) {
-                std::cout << "SDL_KEYDOWN: " << e.key.keysym.sym << std::endl;
+                std::cout << "[SDL_KEYDOWN] sym: " << e.key.keysym.sym << " code: " << e.key.keysym.scancode << std::endl;
+                if (e.key.keysym.scancode == SDL_SCANCODE_SPACE) {
+                    m_selectedShader++;
+                    if (m_selectedShader > 1) {
+                        m_selectedShader = 0;
+                    }
+                }
             }
         }
 
@@ -741,14 +752,14 @@ vk::ShaderModule VulkanEngine::load_shader_module(const char *filePath) {
 void VulkanEngine::init_pipelines() {
     vk::ShaderModule triangleFragShader = load_shader_module("shaders/hellotriangle.frag.spv");
     vk::ShaderModule triangleVertShader = load_shader_module("shaders/hellotriangle.vert.spv");
+    vk::ShaderModule triangle2FragShader = load_shader_module("shaders/hellotriangle2.frag.spv");
+    vk::ShaderModule triangle2VertShader = load_shader_module("shaders/hellotriangle2.vert.spv");
     std::cout << "Loaded shaders." << std::endl;
 
     vk::PipelineLayoutCreateInfo pipelineInfo = vkinit::pipelineLayoutCreateInfo();
     m_trianglePipelineLayout = m_vkDevice.createPipelineLayout(pipelineInfo);
 
     PipelineBuilder pipelineBuilder;
-    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eVertex, triangleVertShader));
-    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eFragment, triangleFragShader));
 
     //This controls how to read vertices from the vertex buffers. We aren't using them yet.
     pipelineBuilder.m_vertexInputInfo = vkinit::pipelineVertexInputStateCreateInfo();
@@ -780,8 +791,17 @@ void VulkanEngine::init_pipelines() {
     //Use the triangle layout we created
     pipelineBuilder.m_pipelineLayout = m_trianglePipelineLayout;
 
+    //Add shaders
+    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eVertex, triangleVertShader));
+    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eFragment, triangleFragShader));
     //Finally, build the pipeline
     m_trianglePipeline = pipelineBuilder.build_pipeline(m_vkDevice, m_renderPass);
+
+    //Build the other pipeline
+    pipelineBuilder.m_shaderStageInfos.clear();
+    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eVertex, triangle2VertShader));
+    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eFragment, triangle2FragShader));
+    m_triangle2Pipeline = pipelineBuilder.build_pipeline(m_vkDevice, m_renderPass);
 
 }
 
