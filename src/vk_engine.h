@@ -3,6 +3,7 @@
 
 
 #include <optional>
+#include <deque>
 #include "vk_types.h"
 
 struct QueueFamilyIndices {
@@ -18,6 +19,25 @@ struct SwapChainSupportDetails {
     vk::SurfaceCapabilitiesKHR capabilities;
     std::vector<vk::SurfaceFormatKHR> formats;
     std::vector<vk::PresentModeKHR> presentModes;
+};
+
+/*
+ * Simple (and somewhat inefficient) deletion queue for cleaning up Vulkan objects when the engine exists.
+ * Heavily inspired by vkguide.dev (like everything else here)
+ */
+struct DeletionQueue {
+    std::deque<std::function<void()>> deleters;
+
+    void push_function(std::function<void()> && func) {
+        deleters.push_back(func);
+    }
+
+    void flush() {
+        for (auto it = deleters.rbegin(); it != deleters.rend(); it++) {
+            (*it)();
+        }
+        deleters.clear();
+    }
 };
 
 class VulkanEngine {
@@ -52,6 +72,7 @@ private:
     int m_frameNumber = 0;
     struct SDL_Window* m_sdlWindow = nullptr;
     int m_selectedShader = 0;
+    DeletionQueue m_mainDeletionQueue;
 
     // Vulkan members and handles
     vk::Extent2D m_windowExtent{640, 480};

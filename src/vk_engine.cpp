@@ -71,8 +71,14 @@ void VulkanEngine::cleanup() {
         //Wait for the device to finish rendering before cleaning up
         m_vkDevice.waitIdle();
 
-        SDL_DestroyWindow(m_sdlWindow);
+        m_mainDeletionQueue.flush();
 
+        m_vkDevice.destroy();
+        m_instance.destroy(m_vkSurface);
+        m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger);
+        m_instance.destroy();
+        SDL_DestroyWindow(m_sdlWindow);
+        /*
         //Destroy framebuffers
         for (const auto & fb : m_framebuffers) {
             m_vkDevice.destroyFramebuffer(fb);
@@ -88,11 +94,8 @@ void VulkanEngine::cleanup() {
 
         m_vkDevice.destroyRenderPass(m_renderPass);
         m_vkDevice.destroyCommandPool(m_commandPool);
-        m_vkDevice.destroySwapchainKHR();
-        m_vkDevice.destroy();
-        m_instance.destroy(m_vkSurface);
-        m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger);
-        m_instance.destroy();
+        m_vkDevice.destroySwapchainKHR();*/
+
     }
 }
 
@@ -417,7 +420,12 @@ void VulkanEngine::create_swap_chain() {
         //This will be used if we need to recreate the swap chain, e.g. if the window is resized. This will be relevant later.
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
+        //Create swapchain and also push it into the deletion queue
         m_swapChain = m_vkDevice.createSwapchainKHR(createInfo);
+        m_mainDeletionQueue.push_function([=]() {
+            m_vkDevice.destroySwapchainKHR(m_swapChain);
+        });
+
         m_swapChainImages = m_vkDevice.getSwapchainImagesKHR(m_swapChain);
         m_swapChainImageFormat = surfaceFormat.format;
         m_swapChainExtent = extent;
@@ -465,6 +473,10 @@ void VulkanEngine::create_command_pool_and_buffer() {
         //Allow resetting individual buffers in the pool
         createInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
         m_commandPool = m_vkDevice.createCommandPool(createInfo);
+
+        m_mainDeletionQueue.push_function([=]() {
+            m_vkDevice.destroyCommandPool(m_commandPool);
+        });
     }
 
     //
@@ -528,6 +540,9 @@ void VulkanEngine::init_default_render_pass() {
     createInfo.pSubpasses = &subpass;
 
     m_renderPass = m_vkDevice.createRenderPass(createInfo);
+    m_mainDeletionQueue.push_function([=]() {
+       m_vkDevice.destroyRenderPass(m_renderPass);
+    });
 }
 
 void VulkanEngine::init_framebuffers() {
@@ -546,7 +561,12 @@ void VulkanEngine::init_framebuffers() {
     //for (int i = 0; i < swapchainImageCount; i++) {
     for (const auto & view : m_swapChainImageViews) {
         fbInfo.pAttachments = &view;
-        m_framebuffers.emplace_back(m_vkDevice.createFramebuffer(fbInfo));
+        auto buf = m_vkDevice.createFramebuffer(fbInfo);
+        m_framebuffers.push_back(buf);
+        m_mainDeletionQueue.push_function([=]() {
+            m_vkDevice.destroyFramebuffer(buf);
+            m_vkDevice.destroyImageView(view);
+        });
     }
     std::cout << "Initialized " << m_framebuffers.size() << " framebuffers." << std::endl;
 }
@@ -560,6 +580,12 @@ void VulkanEngine::init_sync_structures() {
     vk::SemaphoreCreateInfo semaphoreInfo = {};
     m_presentSemaphore = m_vkDevice.createSemaphore(semaphoreInfo);
     m_renderSemaphore = m_vkDevice.createSemaphore(semaphoreInfo);
+
+    m_mainDeletionQueue.push_function([=]() {
+        m_vkDevice.destroyFence(m_renderFence);
+        m_vkDevice.destroySemaphore(m_presentSemaphore);
+        m_vkDevice.destroySemaphore(m_renderSemaphore);
+    });
 }
 
 /*
@@ -802,6 +828,19 @@ void VulkanEngine::init_pipelines() {
     pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eVertex, triangle2VertShader));
     pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eFragment, triangle2FragShader));
     m_triangle2Pipeline = pipelineBuilder.build_pipeline(m_vkDevice, m_renderPass);
+
+    //Destroy shader modules
+    m_vkDevice.destroyShaderModule(triangleFragShader);
+    m_vkDevice.destroyShaderModule(triangleVertShader);
+    m_vkDevice.destroyShaderModule(triangle2FragShader);
+    m_vkDevice.destroyShaderModule(triangle2VertShader);
+
+    //Queue destruction of pipelines
+    m_mainDeletionQueue.push_function([=]() {
+        m_vkDevice.destroyPipeline(m_trianglePipeline);
+        m_vkDevice.destroyPipeline(m_triangle2Pipeline);
+        m_vkDevice.destroyPipelineLayout(m_trianglePipelineLayout);
+    });
 
 }
 
