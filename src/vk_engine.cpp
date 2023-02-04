@@ -1,5 +1,6 @@
 #include "vk_engine.h"
 
+#define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
 
 #include <SDL.h>
@@ -16,6 +17,10 @@
 
 #include "vk_types.h"
 #include "vk_initializers.h"
+
+
+//Global dispatch loader singleton
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 const std::vector<const char *> validationLayers = {
         "VK_LAYER_KHRONOS_validation"
