@@ -4,7 +4,7 @@
 
 #include <optional>
 #include <deque>
-#include <vk_mem_alloc.h>
+#include <vk_mem_alloc.hpp>
 #include "vk_types.h"
 
 struct QueueFamilyIndices {
@@ -74,7 +74,7 @@ private:
     struct SDL_Window* m_sdlWindow = nullptr;
     int m_selectedShader = 0;
     DeletionQueue m_mainDeletionQueue;
-    VmaAllocator m_allocator;
+    vma::Allocator m_allocator;
 
     // Vulkan members and handles
     vk::Extent2D m_windowExtent{640, 480};

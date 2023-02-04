@@ -3,10 +3,11 @@
 
 #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #include <vulkan/vulkan.hpp>
+#include <vk_mem_alloc.hpp>
 
 struct AllocatedBuffer {
     vk::Buffer buffer;
-    VmaAllocation allocation;
+    vma::Allocation allocation;
 };
 
 #endif //VKENG_VK_TYPES_H

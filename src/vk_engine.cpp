@@ -1,7 +1,7 @@
 #include "vk_engine.h"
 
 #define VMA_IMPLEMENTATION
-#include <vk_mem_alloc.h>
+#include <vk_mem_alloc.hpp>
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
