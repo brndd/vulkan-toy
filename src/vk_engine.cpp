@@ -607,6 +607,13 @@ void VulkanEngine::init_vulkan() {
     create_command_pool_and_buffer();
     init_default_render_pass();
     init_framebuffers();
+
+    //Initialize memory allocator
+    VmaAllocatorCreateInfo allocatorInfo = {};
+    allocatorInfo.physicalDevice = m_activeGPU;
+    allocatorInfo.device = m_vkDevice;
+    allocatorInfo.instance = m_instance;
+    vmaCreateAllocator(&allocatorInfo, &m_allocator);
 }
 
 bool VulkanEngine::checkValidationLayerSupport() {
