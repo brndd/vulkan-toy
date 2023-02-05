@@ -4,6 +4,7 @@
 
 #include <optional>
 #include <deque>
+#include <glm/glm.hpp>
 #include "vk_types.h"
 #include "vk_mesh.h"
 
@@ -39,6 +40,11 @@ struct DeletionQueue {
         }
         deleters.clear();
     }
+};
+
+struct MeshPushConstants {
+    glm::vec4 data;
+    glm::mat4 render_matrix;
 };
 
 class VulkanEngine {
@@ -97,9 +103,7 @@ private:
     vk::Semaphore m_presentSemaphore, m_renderSemaphore;
     vk::Fence m_renderFence;
 
-    vk::PipelineLayout m_trianglePipelineLayout;
-    vk::Pipeline m_trianglePipeline;
-    vk::Pipeline m_triangle2Pipeline;
+    vk::PipelineLayout m_meshPipelineLayout;
 
     vk::Pipeline m_meshPipeline;
     Mesh m_triangleMesh;

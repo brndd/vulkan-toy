@@ -2,6 +2,7 @@
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
+#include <glm/gtx/transform.hpp>
 
 #include <iostream>
 #include <chrono>
@@ -124,20 +125,31 @@ void VulkanEngine::draw() {
     rpInfo.pClearValues = &clearValue;
 
     cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
-
+    //
     //Render commands go here
-    /*
-    if (m_selectedShader == 0) {
-        cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_trianglePipeline);
-    }
-    else {
-        cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_triangle2Pipeline);
-    }
-    cmd.draw(3, 1, 0, 0); // draw 1 object with 3 vertices
-    */
+    //
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_meshPipeline);
     vk::DeviceSize offset = 0;
     cmd.bindVertexBuffers(0, 1, &m_triangleMesh.vertexBuffer.buffer, &offset);
+
+    //view matrix stuff
+    glm::vec3 camPos = {0.0f, 0.0f, -2.0f};
+    glm::mat4 view = glm::translate(glm::mat4(1.0f), camPos);
+    glm::mat4 projection = glm::perspective(glm::radians(70.0f), 1700.0f / 900.0f, 0.1f, 200.0f);
+    projection[1][1] *= -1;
+
+    //Rotate based on frame number
+    glm::mat4 modelTransform = glm::rotate(glm::mat4{1.0f}, glm::radians(m_frameNumber * 1.0f), glm::vec3(0, 1, 0));
+
+    //Calculate final mesh matrix
+    glm::mat4 meshMatrix = projection * view * modelTransform;
+
+    MeshPushConstants pushConstants;
+    pushConstants.render_matrix = meshMatrix;
+
+    //Stick it on the GPU via push constants
+    cmd.pushConstants(m_meshPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(MeshPushConstants), &pushConstants);
+
     cmd.draw(m_triangleMesh.vertices.size(), 1, 0, 0);
 
     //Finalize the render pass
@@ -777,15 +789,9 @@ vk::ShaderModule VulkanEngine::load_shader_module(const char *filePath) {
 
 void VulkanEngine::init_pipelines() {
     vk::ShaderModule triangleFragShader = load_shader_module("shaders/hellotriangle.frag.spv");
-    vk::ShaderModule triangleVertShader = load_shader_module("shaders/hellotriangle.vert.spv");
-    vk::ShaderModule triangle2FragShader = load_shader_module("shaders/hellotriangle2.frag.spv");
-    vk::ShaderModule triangle2VertShader = load_shader_module("shaders/hellotriangle2.vert.spv");
     //Load mesh vertex shader
     vk::ShaderModule meshVertShader = load_shader_module("shaders/tri_mesh.vert.spv");
     std::cout << "Loaded shaders." << std::endl;
-
-    vk::PipelineLayoutCreateInfo pipelineInfo = vkinit::pipelineLayoutCreateInfo();
-    m_trianglePipelineLayout = m_vkDevice.createPipelineLayout(pipelineInfo);
 
     PipelineBuilder pipelineBuilder;
 
@@ -816,12 +822,19 @@ void VulkanEngine::init_pipelines() {
     //a single blend attachment with no blending, writing to RGBA
     pipelineBuilder.m_colorBlendAttachmentState = vkinit::pipelineColorBlendAttachmentState();
 
-    //Use the triangle layout we created
-    pipelineBuilder.m_pipelineLayout = m_trianglePipelineLayout;
-
-
     //Build the mesh pipeline
     VertexInputDescription vertexDescription = Vertex::get_vertex_description();
+
+    vk::PipelineLayoutCreateInfo meshPipelineInfo = vkinit::pipelineLayoutCreateInfo();
+
+    //Set up push constants
+    vk::PushConstantRange pushConstantRange;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(MeshPushConstants);
+    pushConstantRange.stageFlags = vk::ShaderStageFlagBits::eVertex;
+
+    meshPipelineInfo.setPushConstantRanges(pushConstantRange);
+    m_meshPipelineLayout = m_vkDevice.createPipelineLayout(meshPipelineInfo); //queued for deletion at the bottom of this func
 
     //Connect the builder vertex input info to the one we got from Vertex::
     pipelineBuilder.m_vertexInputInfo.setVertexAttributeDescriptions(vertexDescription.attributes);
@@ -830,30 +843,22 @@ void VulkanEngine::init_pipelines() {
     //Add shaders
     pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eVertex, meshVertShader));
     pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eFragment, triangleFragShader));
-    //Finally, build the pipeline
-    //m_trianglePipeline = pipelineBuilder.build_pipeline(m_vkDevice, m_renderPass);
-    m_meshPipeline = pipelineBuilder.build_pipeline(m_vkDevice, m_renderPass);
 
-    //Build the other pipeline
-//    pipelineBuilder.m_shaderStageInfos.clear();
-//    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eVertex, triangle2VertShader));
-//    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eFragment, triangle2FragShader));
-//    m_triangle2Pipeline = pipelineBuilder.build_pipeline(m_vkDevice, m_renderPass);
+    //Hook the new layout into the pipelineBuilder
+    pipelineBuilder.m_pipelineLayout = m_meshPipelineLayout;
+
+    //Finally, build the pipeline
+    m_meshPipeline = pipelineBuilder.build_pipeline(m_vkDevice, m_renderPass);
 
     //Destroy shader modules
     m_vkDevice.destroyShaderModule(meshVertShader);
     m_vkDevice.destroyShaderModule(triangleFragShader);
-    m_vkDevice.destroyShaderModule(triangleVertShader);
-    m_vkDevice.destroyShaderModule(triangle2FragShader);
-    m_vkDevice.destroyShaderModule(triangle2VertShader);
 
     //Queue destruction of pipelines
     m_mainDeletionQueue.push_function([=]() {
-//        m_vkDevice.destroyPipeline(m_trianglePipeline);
-//        m_vkDevice.destroyPipeline(m_triangle2Pipeline);
         m_vkDevice.destroyPipeline(m_meshPipeline);
 
-        m_vkDevice.destroyPipelineLayout(m_trianglePipelineLayout);
+        m_vkDevice.destroyPipelineLayout(m_meshPipelineLayout);
     });
 
 }
