@@ -4,8 +4,8 @@
 
 #include <optional>
 #include <deque>
-#include <vk_mem_alloc.hpp>
 #include "vk_types.h"
+#include "vk_mesh.h"
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
@@ -101,6 +101,9 @@ private:
     vk::Pipeline m_trianglePipeline;
     vk::Pipeline m_triangle2Pipeline;
 
+    vk::Pipeline m_meshPipeline;
+    Mesh m_triangleMesh;
+
     //
     // Private methods
     //
@@ -146,6 +149,9 @@ private:
 
     //This will throw if the shader modules fail to load.
     vk::ShaderModule load_shader_module(const char * filePath);
+
+    void load_meshes();
+    void upload_mesh(Mesh &mesh);
 };
 
 //sweet lord what is happening in here??
