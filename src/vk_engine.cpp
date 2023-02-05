@@ -740,11 +740,11 @@ vk::SurfaceFormatKHR VulkanEngine::chooseSwapSurfaceFormat(const std::vector<vk:
 }
 
 vk::PresentModeKHR VulkanEngine::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availableModes) {
-    for (const auto & mode : availableModes) {
-        if (mode == vk::PresentModeKHR::eMailbox) {
-            return mode;
-        }
-    }
+//    for (const auto & mode : availableModes) {
+//        if (mode == vk::PresentModeKHR::eMailbox) {
+//            return mode;
+//        }
+//    }
 
     return vk::PresentModeKHR::eFifo;
 }
