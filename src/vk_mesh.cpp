@@ -1,6 +1,6 @@
 #include "vk_mesh.h"
 
-VertexInputDescription Vertex::get_vertex_description() {
+VertexInputDescription Vertex::getVertexDescription() {
     VertexInputDescription description;
 
     //Quoth the guide: "We will have just 1 vertex buffer binding, with a per-vertex rate"

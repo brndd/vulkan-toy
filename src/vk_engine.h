@@ -112,7 +112,7 @@ private:
     // Private methods
     //
 
-    void init_vulkan();
+    void initVulkan();
 
     bool checkValidationLayerSupport();
 
@@ -129,33 +129,33 @@ private:
     vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR & capabilities);
 
 
-    void create_instance();
+    void createInstance();
 
-    void create_surface();
+    void createSurface();
 
-    void create_debugmessenger();
+    void createDebugMessenger();
 
-    void select_physical_device();
+    void selectPhysicalDevice();
 
-    void create_logical_device();
+    void createLogicalDevice();
 
-    void create_swap_chain();
+    void createSwapChain();
 
-    void create_command_pool_and_buffer();
+    void createCommandPoolAndBuffer();
 
-    void init_default_render_pass();
+    void initDefaultRenderPass();
 
-    void init_framebuffers();
+    void initFramebuffers();
 
-    void init_sync_structures();
+    void initSyncStructures();
 
-    void init_pipelines();
+    void initPipelines();
 
     //This will throw if the shader modules fail to load.
-    vk::ShaderModule load_shader_module(const char * filePath);
+    vk::ShaderModule loadShaderModule(const char * filePath);
 
-    void load_meshes();
-    void upload_mesh(Mesh &mesh);
+    void loadMeshes();
+    void uploadMesh(Mesh &mesh);
 };
 
 //sweet lord what is happening in here??
@@ -172,7 +172,7 @@ public:
     vk::PipelineMultisampleStateCreateInfo m_multisampleInfo;
     vk::PipelineLayout m_pipelineLayout;
 
-    vk::Pipeline build_pipeline(vk::Device device, vk::RenderPass pass);
+    vk::Pipeline buildPipeline(vk::Device device, vk::RenderPass pass);
 
 };
 

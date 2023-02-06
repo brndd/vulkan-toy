@@ -60,12 +60,12 @@ void VulkanEngine::init() {
     else {
         std::cout << "Created SDL window." << std::endl;
     }
-    init_vulkan();
-    init_sync_structures();
+    initVulkan();
+    initSyncStructures();
 
-    init_pipelines();
+    initPipelines();
 
-    load_meshes();
+    loadMeshes();
 
     m_isInitialized = true;
 }
@@ -124,10 +124,12 @@ void VulkanEngine::draw() {
     rpInfo.clearValueCount = 1;
     rpInfo.pClearValues = &clearValue;
 
-    cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
+
     //
     //Render commands go here
     //
+    cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
+
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_meshPipeline);
     vk::DeviceSize offset = 0;
     cmd.bindVertexBuffers(0, 1, &m_triangleMesh.vertexBuffer.buffer, &offset);
@@ -156,6 +158,7 @@ void VulkanEngine::draw() {
     cmd.endRenderPass();
     //Finalize the command buffer (can no longer add commands, but it can be executed)
     cmd.end();
+
 
     //Submit command buffer to GPU
     vk::SubmitInfo submitInfo = {};
@@ -202,7 +205,7 @@ void VulkanEngine::run() {
     }
 }
 
-void VulkanEngine::create_instance() {
+void VulkanEngine::createInstance() {
     //Initialize DispatchLoaderDynamic stuff (step 1)
     {
         vk::DynamicLoader dl;
@@ -277,7 +280,7 @@ void VulkanEngine::create_instance() {
     }
 }
 
-void VulkanEngine::create_surface() {
+void VulkanEngine::createSurface() {
     //
     // Create surface
     //
@@ -290,7 +293,7 @@ void VulkanEngine::create_surface() {
     }
 }
 
-void VulkanEngine::create_debugmessenger() {
+void VulkanEngine::createDebugMessenger() {
     //
     // Set up debug messenger
     //
@@ -302,7 +305,7 @@ void VulkanEngine::create_debugmessenger() {
     }
 }
 
-void VulkanEngine::select_physical_device() {
+void VulkanEngine::selectPhysicalDevice() {
     //
     // Select physical device
     //
@@ -330,7 +333,7 @@ void VulkanEngine::select_physical_device() {
     }
 }
 
-void VulkanEngine::create_logical_device() {
+void VulkanEngine::createLogicalDevice() {
     //
     // Create logical device (vk::Device)
     //
@@ -376,7 +379,7 @@ void VulkanEngine::create_logical_device() {
     }
 }
 
-void VulkanEngine::create_swap_chain() {
+void VulkanEngine::createSwapChain() {
     //
     // Create swap chain
     //
@@ -466,7 +469,7 @@ void VulkanEngine::create_swap_chain() {
     std::cout << "Created " << m_swapChainImageViews.size() << " swap chain image views." << std::endl;
 }
 
-void VulkanEngine::create_command_pool_and_buffer() {
+void VulkanEngine::createCommandPoolAndBuffer() {
     //
     // Create a command pool
     //
@@ -503,7 +506,7 @@ void VulkanEngine::create_command_pool_and_buffer() {
     std::cout << "Created command pool and command buffer." << std::endl;
 }
 
-void VulkanEngine::init_default_render_pass() {
+void VulkanEngine::initDefaultRenderPass() {
     //Quoting vkguide.dev:
     //The image life will go something like this:
     //UNDEFINED -> RenderPass Begins -> Subpass 0 begins (Transition to Attachment Optimal) -> Subpass 0 renders -> Subpass 0 ends -> Renderpass Ends (Transitions to Present Source)
@@ -550,7 +553,7 @@ void VulkanEngine::init_default_render_pass() {
     });
 }
 
-void VulkanEngine::init_framebuffers() {
+void VulkanEngine::initFramebuffers() {
     vk::FramebufferCreateInfo fbInfo = {};
     fbInfo.pNext = nullptr;
     fbInfo.renderPass = m_renderPass;
@@ -576,7 +579,7 @@ void VulkanEngine::init_framebuffers() {
     std::cout << "Initialized " << m_framebuffers.size() << " framebuffers." << std::endl;
 }
 
-void VulkanEngine::init_sync_structures() {
+void VulkanEngine::initSyncStructures() {
     vk::FenceCreateInfo fenceInfo = {};
     //This allows us to wait on the fence on first use
     fenceInfo.flags = vk::FenceCreateFlagBits::eSignaled;
@@ -597,16 +600,16 @@ void VulkanEngine::init_sync_structures() {
  * Initializes Vulkan. I honestly couldn't tell you what half this boilerplate does; I wrote it by following along with
  * https://vulkan-tutorial.com and https://vkguide.dev, and it's... it's a lot to take in.
  */
-void VulkanEngine::init_vulkan() {
-    create_instance();
-    create_surface();
-    create_debugmessenger();
-    select_physical_device();
-    create_logical_device();
-    create_swap_chain();
-    create_command_pool_and_buffer();
-    init_default_render_pass();
-    init_framebuffers();
+void VulkanEngine::initVulkan() {
+    createInstance();
+    createSurface();
+    createDebugMessenger();
+    selectPhysicalDevice();
+    createLogicalDevice();
+    createSwapChain();
+    createCommandPoolAndBuffer();
+    initDefaultRenderPass();
+    initFramebuffers();
 
     //Initialize memory allocator
     vma::AllocatorCreateInfo allocatorInfo = {};
@@ -765,7 +768,7 @@ vk::Extent2D VulkanEngine::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &ca
 
 }
 
-vk::ShaderModule VulkanEngine::load_shader_module(const char *filePath) {
+vk::ShaderModule VulkanEngine::loadShaderModule(const char *filePath) {
     std::ifstream file(filePath, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
@@ -787,10 +790,10 @@ vk::ShaderModule VulkanEngine::load_shader_module(const char *filePath) {
     return module;
 }
 
-void VulkanEngine::init_pipelines() {
-    vk::ShaderModule triangleFragShader = load_shader_module("shaders/hellotriangle.frag.spv");
+void VulkanEngine::initPipelines() {
+    vk::ShaderModule triangleFragShader = loadShaderModule("shaders/hellotriangle.frag.spv");
     //Load mesh vertex shader
-    vk::ShaderModule meshVertShader = load_shader_module("shaders/tri_mesh.vert.spv");
+    vk::ShaderModule meshVertShader = loadShaderModule("shaders/tri_mesh.vert.spv");
     std::cout << "Loaded shaders." << std::endl;
 
     PipelineBuilder pipelineBuilder;
@@ -848,7 +851,7 @@ void VulkanEngine::init_pipelines() {
     pipelineBuilder.m_pipelineLayout = m_meshPipelineLayout;
 
     //Finally, build the pipeline
-    m_meshPipeline = pipelineBuilder.build_pipeline(m_vkDevice, m_renderPass);
+    m_meshPipeline = pipelineBuilder.buildPipeline(m_vkDevice, m_renderPass);
 
     //Destroy shader modules
     m_vkDevice.destroyShaderModule(meshVertShader);
@@ -863,7 +866,7 @@ void VulkanEngine::init_pipelines() {
 
 }
 
-void VulkanEngine::load_meshes() {
+void VulkanEngine::loadMeshes() {
     //Hardcode a triangle mesh
     m_triangleMesh.vertices.resize(3);
     m_triangleMesh.vertices[0].position = {1.0f, 1.0f, 0.0f};
@@ -874,10 +877,10 @@ void VulkanEngine::load_meshes() {
     m_triangleMesh.vertices[2].color = {0.0f, 1.0f, 0.0f};
     //Don't need normals yet
 
-    upload_mesh(m_triangleMesh);
+    uploadMesh(m_triangleMesh);
 }
 
-void VulkanEngine::upload_mesh(Mesh &mesh) {
+void VulkanEngine::uploadMesh(Mesh &mesh) {
     vk::BufferCreateInfo bufferInfo = {};
     bufferInfo.size = mesh.vertices.size() * sizeof(Vertex);
     bufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
@@ -902,7 +905,7 @@ void VulkanEngine::upload_mesh(Mesh &mesh) {
     m_allocator.unmapMemory(mesh.vertexBuffer.allocation);
 }
 
-vk::Pipeline PipelineBuilder::build_pipeline(vk::Device device, vk::RenderPass pass) {
+vk::Pipeline PipelineBuilder::buildPipeline(vk::Device device, vk::RenderPass pass) {
     //Create viewportstate from the stored viewport and scissor.
     //At the moment we don't support multiple viewports or scissors.
     vk::PipelineViewportStateCreateInfo viewportInfo = {};
