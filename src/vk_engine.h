@@ -83,6 +83,7 @@ private:
     float m_simulationTime = 0.0f; //Simulation time in seconds
     struct SDL_Window* m_sdlWindow = nullptr;
     int m_selectedShader = 0;
+    bool m_framebufferResized = false;
     DeletionQueue m_mainDeletionQueue;
     vma::Allocator m_allocator;
 

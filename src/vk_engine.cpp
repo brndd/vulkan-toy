@@ -43,15 +43,15 @@ static void populateDebugMessageCreateInfo(vk::DebugUtilsMessengerCreateInfoEXT 
 void VulkanEngine::init() {
     //Initialize SDL window
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN);
+    SDL_WindowFlags window_flags = static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
     //Create window
     m_sdlWindow = SDL_CreateWindow(
             "vkeng",
             SDL_WINDOWPOS_UNDEFINED,
             SDL_WINDOWPOS_UNDEFINED,
-            m_windowExtent.width,
-            m_windowExtent.height,
+            static_cast<int>(m_windowExtent.width),
+            static_cast<int>(m_windowExtent.height),
             window_flags
             );
     if (m_sdlWindow == NULL) {
@@ -92,19 +92,60 @@ void VulkanEngine::cleanup() {
     }
 }
 
+void VulkanEngine::run() {
+    SDL_Event e;
+    bool bQuit = false;
+
+    while (!bQuit) {
+        auto start = std::chrono::high_resolution_clock::now();
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_QUIT) {
+                bQuit = true;
+            } else if (e.type == SDL_KEYDOWN) {
+                std::cout << "[SDL_KEYDOWN] sym: " << e.key.keysym.sym << " code: " << e.key.keysym.scancode
+                          << std::endl;
+                if (e.key.keysym.scancode == SDL_SCANCODE_SPACE) {
+                    m_selectedShader++;
+                    if (m_selectedShader > 1) {
+                        m_selectedShader = 0;
+                    }
+                }
+            }
+            else if (e.type == SDL_WINDOWEVENT) {
+                if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
+                    std::cout << "[SDL_WINDOWEVENT] Resizing window..." << std::endl;
+                    m_framebufferResized = true;
+                }
+            }
+        }
+
+        draw();
+        auto end = std::chrono::high_resolution_clock::now();
+        auto elapsedTime = std::chrono::duration_cast<std::chrono::duration<float>>(end - start).count();
+        m_simulationTime += elapsedTime;
+    }
+}
+
 void VulkanEngine::draw() {
     int inFlightFrame = m_frameNumber % FRAMES_IN_FLIGHT;
 
     //Wait until the GPU has rendered the previous frame, with a timeout of 1 second.
-    m_vkDevice.waitForFences(m_inFlightFences[inFlightFrame], true, S_TO_NS(1));
-    m_vkDevice.resetFences(m_inFlightFences[inFlightFrame]);
+    auto waitResult = m_vkDevice.waitForFences(m_inFlightFences[inFlightFrame], true, S_TO_NS(1));
+    if (waitResult == vk::Result::eTimeout) {
+        std::cout << "Waiting for fences timed out!" << std::endl;
+    }
 
     //Request image from swapchain with one second timeout.
     auto [nextImageResult, swapChainImgIndex] = m_vkDevice.acquireNextImageKHR(m_swapChain, S_TO_NS(1), m_imageAvailableSemaphores[inFlightFrame]);
-    if (nextImageResult != vk::Result::eSuccess) {
-        vk::throwResultException(nextImageResult, "Failed to acquire swapchain image.");
+    if (nextImageResult == vk::Result::eErrorOutOfDateKHR) {
+        recreateSwapChain();
+        return;
+    }
+    else if (nextImageResult != vk::Result::eSuccess) {
+        vk::throwResultException(nextImageResult, "Failed to acquire swap chain image.");
     }
 
+    m_vkDevice.resetFences(m_inFlightFences[inFlightFrame]);
 
     //Reset the command buffer now that commands are done executing.
     auto & cmd = m_commandBuffers[inFlightFrame];
@@ -186,36 +227,16 @@ void VulkanEngine::draw() {
     presentInfo.setSwapchains(m_swapChain);
     presentInfo.setWaitSemaphores(m_renderFinishedSemaphores[inFlightFrame]);
     presentInfo.setImageIndices(swapChainImgIndex);
-    m_graphicsQueue.presentKHR(presentInfo);
+    auto presentResult = m_graphicsQueue.presentKHR(presentInfo);
+    if (presentResult == vk::Result::eErrorOutOfDateKHR || presentResult == vk::Result::eSuboptimalKHR || m_framebufferResized) {
+        m_framebufferResized = false;
+        recreateSwapChain();
+    }
+    else if (presentResult != vk::Result::eSuccess) {
+        vk::throwResultException(nextImageResult, "Failed to present swap chain image.");
+    }
 
     m_frameNumber++;
-}
-
-void VulkanEngine::run() {
-    SDL_Event e;
-    bool bQuit = false;
-
-    while (!bQuit) {
-        auto start = std::chrono::high_resolution_clock::now();
-        while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_QUIT)
-                bQuit = true;
-            else if (e.type == SDL_KEYDOWN) {
-                std::cout << "[SDL_KEYDOWN] sym: " << e.key.keysym.sym << " code: " << e.key.keysym.scancode << std::endl;
-                if (e.key.keysym.scancode == SDL_SCANCODE_SPACE) {
-                    m_selectedShader++;
-                    if (m_selectedShader > 1) {
-                        m_selectedShader = 0;
-                    }
-                }
-            }
-        }
-
-        draw();
-        auto end = std::chrono::high_resolution_clock::now();
-        auto elapsedTime = std::chrono::duration_cast<std::chrono::duration<float>>(end - start).count();
-        m_simulationTime += elapsedTime;
-    }
 }
 
 void VulkanEngine::createInstance() {
@@ -401,6 +422,7 @@ void VulkanEngine::createSwapChain() {
         vk::SurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
         vk::PresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
         vk::Extent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+        std::cout << "Swap chain extent size: " << extent.width << ", " << extent.height << std::endl;
         uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
         if (swapChainSupport.capabilities.maxImageCount > 0 &&
             imageCount > swapChainSupport.capabilities.maxImageCount) {
@@ -923,6 +945,7 @@ void VulkanEngine::uploadMesh(Mesh &mesh) {
 }
 
 void VulkanEngine::recreateSwapChain() {
+    std::cout << "Recreating swap chain." << std::endl;
     m_vkDevice.waitIdle();
 
     cleanupSwapChain();
