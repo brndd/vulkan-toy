@@ -138,7 +138,7 @@ void VulkanEngine::draw() {
     cmd.bindVertexBuffers(0, 1, &m_triangleMesh.vertexBuffer.buffer, &offset);
 
     //view matrix stuff
-    glm::vec3 camPos = {0.0f, 0.0f, -2.0f};
+    glm::vec3 camPos = {0.0f, 0.0f, -3.0f};
     glm::mat4 view = glm::translate(glm::mat4(1.0f), camPos);
     glm::mat4 projection = glm::perspective(glm::radians(70.0f), 1700.0f / 900.0f, 0.1f, 200.0f);
     projection[1][1] *= -1;
@@ -885,12 +885,12 @@ void VulkanEngine::initPipelines() {
 void VulkanEngine::loadMeshes() {
     //Hardcode a triangle mesh
     m_triangleMesh.vertices.resize(3);
-    m_triangleMesh.vertices[0].position = {1.0f, 1.0f, 0.0f};
-    m_triangleMesh.vertices[1].position = {-1.0f, 1.0f, 0.0f};
-    m_triangleMesh.vertices[2].position = {0.0f, -1.0f, 0.0f};
-    m_triangleMesh.vertices[0].color = {0.0f, 1.0f, 0.0f};
+    m_triangleMesh.vertices[0].position = {1.0f, -1.0f, 0.0f};
+    m_triangleMesh.vertices[1].position = {-1.0f, -1.0f, 0.0f};
+    m_triangleMesh.vertices[2].position = {0.0f, 1.0f, 0.0f};
+    m_triangleMesh.vertices[0].color = {1.0f, 0.0f, 0.0f};
     m_triangleMesh.vertices[1].color = {0.0f, 1.0f, 0.0f};
-    m_triangleMesh.vertices[2].color = {0.0f, 1.0f, 0.0f};
+    m_triangleMesh.vertices[2].color = {0.0f, 0.0f, 1.0f};
     //Don't need normals yet
 
     uploadMesh(m_triangleMesh);
