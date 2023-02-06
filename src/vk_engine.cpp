@@ -542,6 +542,14 @@ void VulkanEngine::initDefaultRenderPass() {
     colorAttachmentRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
     //Create 1 subpass (the minimum)
+    vk::SubpassDependency dependency = {};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+    dependency.srcAccessMask = vk::AccessFlagBits::eNone;
+    dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+    dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+
     vk::SubpassDescription subpass = {};
     subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
     subpass.colorAttachmentCount = 1;
@@ -553,6 +561,7 @@ void VulkanEngine::initDefaultRenderPass() {
     createInfo.pAttachments = &colorAttachment;
     createInfo.subpassCount = 1;
     createInfo.pSubpasses = &subpass;
+    createInfo.setDependencies(dependency);
 
     m_renderPass = m_vkDevice.createRenderPass(createInfo);
     m_mainDeletionQueue.push_function([=]() {
