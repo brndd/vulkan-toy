@@ -89,11 +89,10 @@ void VulkanEngine::cleanup() {
 
 void VulkanEngine::draw() {
     //Wait until the GPU has rendered the previous frame, with a timeout of 1 second.
-    //FIXME: there must be a better way than writing 10^9 when I really want 1 second. A neat macro or something.
     m_vkDevice.waitForFences(m_renderFence, true, S_TO_NS(1));
     m_vkDevice.resetFences(m_renderFence);
 
-    //Request image from swapchain with one second timeout. FIXME: nanosecond stuff, also this value thing should be handled properly (check the ResultValue object in a switch case)
+    //Request image from swapchain with one second timeout.
     uint32_t swapChainImgIndex = m_vkDevice.acquireNextImageKHR(m_swapChain, S_TO_NS(1), m_presentSemaphore).value;
 
 
