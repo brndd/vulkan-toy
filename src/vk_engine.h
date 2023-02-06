@@ -5,6 +5,7 @@
 #include <optional>
 #include <deque>
 #include <glm/glm.hpp>
+#include <chrono>
 #include "vk_types.h"
 #include "vk_mesh.h"
 
@@ -77,6 +78,7 @@ private:
     //
     bool m_isInitialized = false;
     int m_frameNumber = 0;
+    float m_simulationTime = 0.0f; //Simulation time in seconds
     struct SDL_Window* m_sdlWindow = nullptr;
     int m_selectedShader = 0;
     DeletionQueue m_mainDeletionQueue;

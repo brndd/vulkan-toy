@@ -108,7 +108,7 @@ void VulkanEngine::draw() {
     cmd.begin(cmdBeginInfo);
 
     vk::ClearValue clearValue = {};
-    float flash = abs(sin(m_frameNumber / 120.0f));
+    float flash = abs(sin(m_simulationTime));
     const std::array<float, 4> cols = {0.0f, 0.0f, flash, 1.0f};
     clearValue.color = {cols};
 
@@ -141,7 +141,7 @@ void VulkanEngine::draw() {
     projection[1][1] *= -1;
 
     //Rotate based on frame number
-    glm::mat4 modelTransform = glm::rotate(glm::mat4{1.0f}, glm::radians(m_frameNumber * 1.0f), glm::vec3(0, 1, 0));
+    glm::mat4 modelTransform = glm::rotate(glm::mat4{1.0f}, glm::radians(m_simulationTime * 100.0f), glm::vec3(0, 1, 0));
 
     //Calculate final mesh matrix
     glm::mat4 meshMatrix = projection * view * modelTransform;
@@ -187,6 +187,7 @@ void VulkanEngine::run() {
     bool bQuit = false;
 
     while (!bQuit) {
+        auto start = std::chrono::high_resolution_clock::now();
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT)
                 bQuit = true;
@@ -202,6 +203,9 @@ void VulkanEngine::run() {
         }
 
         draw();
+        auto end = std::chrono::high_resolution_clock::now();
+        auto elapsedTime = std::chrono::duration_cast<std::chrono::duration<float>>(end - start).count();
+        m_simulationTime += elapsedTime;
     }
 }
 
@@ -826,7 +830,7 @@ void VulkanEngine::initPipelines() {
     pipelineBuilder.m_colorBlendAttachmentState = vkinit::pipelineColorBlendAttachmentState();
 
     //Build the mesh pipeline
-    VertexInputDescription vertexDescription = Vertex::get_vertex_description();
+    VertexInputDescription vertexDescription = Vertex::getVertexDescription();
 
     vk::PipelineLayoutCreateInfo meshPipelineInfo = vkinit::pipelineLayoutCreateInfo();
 
