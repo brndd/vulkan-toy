@@ -32,7 +32,7 @@ find_package(Vulkan REQUIRED)
 find_program(GLSLC glslc HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)
 
 #Collect shader files
-file(GLOB_RECURSE GLSL_SOURCE_FILES "src/shaders/*.frag" "src/shaders/*.vert" "src/shaders/*.comp")
+file(GLOB_RECURSE GLSL_SOURCE_FILES CONFIGURE_DEPENDS "src/shaders/*.frag" "src/shaders/*.vert" "src/shaders/*.comp")
 
 foreach(GLSL ${GLSL_SOURCE_FILES})
     message(STATUS "BUILDING SHADER")
