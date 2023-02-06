@@ -88,20 +88,21 @@ void VulkanEngine::cleanup() {
 }
 
 void VulkanEngine::draw() {
+    int inFlightFrame = m_frameNumber % FRAMES_IN_FLIGHT;
+
     //Wait until the GPU has rendered the previous frame, with a timeout of 1 second.
-    m_vkDevice.waitForFences(m_renderFence, true, S_TO_NS(1));
-    m_vkDevice.resetFences(m_renderFence);
+    m_vkDevice.waitForFences(m_inFlightFences[inFlightFrame], true, S_TO_NS(1));
+    m_vkDevice.resetFences(m_inFlightFences[inFlightFrame]);
 
     //Request image from swapchain with one second timeout.
-
-    auto [nextImageResult, swapChainImgIndex] = m_vkDevice.acquireNextImageKHR(m_swapChain, S_TO_NS(1), m_presentSemaphore);
+    auto [nextImageResult, swapChainImgIndex] = m_vkDevice.acquireNextImageKHR(m_swapChain, S_TO_NS(1), m_imageAvailableSemaphores[inFlightFrame]);
     if (nextImageResult != vk::Result::eSuccess) {
         vk::throwResultException(nextImageResult, "Failed to acquire swapchain image.");
     }
 
 
     //Reset the command buffer now that commands are done executing.
-    auto & cmd = m_mainCommandBuffer;
+    auto & cmd = m_commandBuffers[inFlightFrame];
     cmd.reset();
 
     //Tell Vulkan we will only use this once
@@ -167,18 +168,18 @@ void VulkanEngine::draw() {
     vk::SubmitInfo submitInfo = {};
     vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
     submitInfo.pWaitDstStageMask = &waitStage;
-    submitInfo.setWaitSemaphores(m_presentSemaphore);
-    submitInfo.setSignalSemaphores(m_renderSemaphore);
+    submitInfo.setWaitSemaphores(m_imageAvailableSemaphores[inFlightFrame]);
+    submitInfo.setSignalSemaphores(m_renderFinishedSemaphores[inFlightFrame]);
     submitInfo.setCommandBuffers(cmd);
 
     //Submit command buffer to the queue and execute it.
-    //m_renderFence will now block until the graphic commands finish execution.
-    m_graphicsQueue.submit(submitInfo, m_renderFence);
+    //m_inFlightFences will now block until the graphic commands finish execution.
+    m_graphicsQueue.submit(submitInfo, m_inFlightFences[inFlightFrame]);
 
     //Finally, display the image on the screen.
     vk::PresentInfoKHR presentInfo = {};
     presentInfo.setSwapchains(m_swapChain);
-    presentInfo.setWaitSemaphores(m_renderSemaphore);
+    presentInfo.setWaitSemaphores(m_renderFinishedSemaphores[inFlightFrame]);
     presentInfo.setImageIndices(swapChainImgIndex);
     m_graphicsQueue.presentKHR(presentInfo);
 
@@ -476,7 +477,7 @@ void VulkanEngine::createSwapChain() {
     std::cout << "Created " << m_swapChainImageViews.size() << " swap chain image views." << std::endl;
 }
 
-void VulkanEngine::createCommandPoolAndBuffer() {
+void VulkanEngine::createCommandPoolAndBuffers() {
     //
     // Create a command pool
     //
@@ -503,11 +504,11 @@ void VulkanEngine::createCommandPoolAndBuffer() {
 
         cmdAllocInfo.commandPool = m_commandPool;
         //Allocate 1 command buffer
-        cmdAllocInfo.commandBufferCount = 1;
+        cmdAllocInfo.commandBufferCount = FRAMES_IN_FLIGHT;
         cmdAllocInfo.level = vk::CommandBufferLevel::ePrimary;
 
         auto buffers = m_vkDevice.allocateCommandBuffers(cmdAllocInfo);
-        m_mainCommandBuffer = buffers[0]; //this should be alright as we only allocate one buffer
+        m_commandBuffers = buffers;
     }
 
     std::cout << "Created command pool and command buffer." << std::endl;
@@ -599,16 +600,22 @@ void VulkanEngine::initSyncStructures() {
     vk::FenceCreateInfo fenceInfo = {};
     //This allows us to wait on the fence on first use
     fenceInfo.flags = vk::FenceCreateFlagBits::eSignaled;
-    m_renderFence = m_vkDevice.createFence(fenceInfo);
 
     vk::SemaphoreCreateInfo semaphoreInfo = {};
-    m_presentSemaphore = m_vkDevice.createSemaphore(semaphoreInfo);
-    m_renderSemaphore = m_vkDevice.createSemaphore(semaphoreInfo);
+
+    for (int i = 0; i < FRAMES_IN_FLIGHT; i++) {
+        m_inFlightFences.push_back(m_vkDevice.createFence(fenceInfo));
+        m_imageAvailableSemaphores.push_back(m_vkDevice.createSemaphore(semaphoreInfo));
+        m_renderFinishedSemaphores.push_back(m_vkDevice.createSemaphore(semaphoreInfo));
+    }
+
 
     m_mainDeletionQueue.push_function([=]() {
-        m_vkDevice.destroyFence(m_renderFence);
-        m_vkDevice.destroySemaphore(m_presentSemaphore);
-        m_vkDevice.destroySemaphore(m_renderSemaphore);
+        for (int i = 0; i < FRAMES_IN_FLIGHT; i++) {
+            m_vkDevice.destroyFence(m_inFlightFences[i]);
+            m_vkDevice.destroySemaphore(m_imageAvailableSemaphores[i]);
+            m_vkDevice.destroySemaphore(m_renderFinishedSemaphores[i]);
+        }
     });
 }
 
@@ -623,7 +630,7 @@ void VulkanEngine::initVulkan() {
     selectPhysicalDevice();
     createLogicalDevice();
     createSwapChain();
-    createCommandPoolAndBuffer();
+    createCommandPoolAndBuffers();
     initDefaultRenderPass();
     initFramebuffers();
 

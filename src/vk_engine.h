@@ -9,6 +9,8 @@
 #include "vk_types.h"
 #include "vk_mesh.h"
 
+const int FRAMES_IN_FLIGHT = 2;
+
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
@@ -99,11 +101,12 @@ private:
     vk::Extent2D m_swapChainExtent;
     std::vector<vk::ImageView> m_swapChainImageViews;
     vk::CommandPool m_commandPool;
-    vk::CommandBuffer m_mainCommandBuffer;
+    std::vector<vk::CommandBuffer> m_commandBuffers;
     vk::RenderPass m_renderPass;
     std::vector<vk::Framebuffer> m_framebuffers;
-    vk::Semaphore m_presentSemaphore, m_renderSemaphore;
-    vk::Fence m_renderFence;
+    std::vector<vk::Semaphore> m_imageAvailableSemaphores;
+    std::vector<vk::Semaphore> m_renderFinishedSemaphores;
+    std::vector<vk::Fence> m_inFlightFences;
 
     vk::PipelineLayout m_meshPipelineLayout;
 
@@ -143,7 +146,7 @@ private:
 
     void createSwapChain();
 
-    void createCommandPoolAndBuffer();
+    void createCommandPoolAndBuffers();
 
     void initDefaultRenderPass();
 
