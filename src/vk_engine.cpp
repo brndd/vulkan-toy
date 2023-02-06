@@ -61,9 +61,9 @@ void VulkanEngine::init() {
         std::cout << "Created SDL window." << std::endl;
     }
     initVulkan();
-    initSyncStructures();
+    createSyncStructures();
 
-    initPipelines();
+    createPipelines();
 
     loadMeshes();
 
@@ -75,9 +75,14 @@ void VulkanEngine::cleanup() {
         //Wait for the device to finish rendering before cleaning up
         m_vkDevice.waitIdle();
 
+        //Destroy all objects in the deletion queue
         m_mainDeletionQueue.flush();
 
+        //Destroy objects that for some reason aren't in the deletion queue
         m_allocator.destroy();
+
+        //Swap chain and swap chain accessories are separate so they can be recreated if necessary.
+        cleanupSwapChain();
 
         m_vkDevice.destroy();
         m_instance.destroy(m_vkSurface);
@@ -122,7 +127,7 @@ void VulkanEngine::draw() {
     rpInfo.renderArea.offset.x = 0;
     rpInfo.renderArea.offset.y = 0;
     rpInfo.renderArea.extent = m_swapChainExtent;
-    rpInfo.framebuffer = m_framebuffers[swapChainImgIndex];
+    rpInfo.framebuffer = m_swapChainFramebuffers[swapChainImgIndex];
 
     //connect clear values
     rpInfo.clearValueCount = 1;
@@ -438,9 +443,6 @@ void VulkanEngine::createSwapChain() {
 
         //Create swapchain and also push it into the deletion queue
         m_swapChain = m_vkDevice.createSwapchainKHR(createInfo);
-        m_mainDeletionQueue.push_function([=]() {
-            m_vkDevice.destroySwapchainKHR(m_swapChain);
-        });
 
         m_swapChainImages = m_vkDevice.getSwapchainImagesKHR(m_swapChain);
         m_swapChainImageFormat = surfaceFormat.format;
@@ -514,7 +516,7 @@ void VulkanEngine::createCommandPoolAndBuffers() {
     std::cout << "Created command pool and command buffer." << std::endl;
 }
 
-void VulkanEngine::initDefaultRenderPass() {
+void VulkanEngine::createDefaultRenderPass() {
     //Quoting vkguide.dev:
     //The image life will go something like this:
     //UNDEFINED -> RenderPass Begins -> Subpass 0 begins (Transition to Attachment Optimal) -> Subpass 0 renders -> Subpass 0 ends -> Renderpass Ends (Transitions to Present Source)
@@ -570,7 +572,7 @@ void VulkanEngine::initDefaultRenderPass() {
     });
 }
 
-void VulkanEngine::initFramebuffers() {
+void VulkanEngine::createFramebuffers() {
     vk::FramebufferCreateInfo fbInfo = {};
     fbInfo.pNext = nullptr;
     fbInfo.renderPass = m_renderPass;
@@ -579,24 +581,16 @@ void VulkanEngine::initFramebuffers() {
     fbInfo.height = m_swapChainExtent.height;
     fbInfo.layers = 1;
 
-    const auto swapchainImageCount = m_swapChainImages.size();
-    //m_framebuffers = std::vector<vk::Framebuffer>(swapchainImageCount);
-
     //Create a framebuffer for each swap chain image view
-    //for (int i = 0; i < swapchainImageCount; i++) {
     for (const auto & view : m_swapChainImageViews) {
         fbInfo.pAttachments = &view;
         auto buf = m_vkDevice.createFramebuffer(fbInfo);
-        m_framebuffers.push_back(buf);
-        m_mainDeletionQueue.push_function([=]() {
-            m_vkDevice.destroyFramebuffer(buf);
-            m_vkDevice.destroyImageView(view);
-        });
+        m_swapChainFramebuffers.push_back(buf);
     }
-    std::cout << "Initialized " << m_framebuffers.size() << " framebuffers." << std::endl;
+    std::cout << "Initialized " << m_swapChainFramebuffers.size() << " framebuffers." << std::endl;
 }
 
-void VulkanEngine::initSyncStructures() {
+void VulkanEngine::createSyncStructures() {
     vk::FenceCreateInfo fenceInfo = {};
     //This allows us to wait on the fence on first use
     fenceInfo.flags = vk::FenceCreateFlagBits::eSignaled;
@@ -631,8 +625,8 @@ void VulkanEngine::initVulkan() {
     createLogicalDevice();
     createSwapChain();
     createCommandPoolAndBuffers();
-    initDefaultRenderPass();
-    initFramebuffers();
+    createDefaultRenderPass();
+    createFramebuffers();
 
     //Initialize memory allocator
     vma::AllocatorCreateInfo allocatorInfo = {};
@@ -813,7 +807,7 @@ vk::ShaderModule VulkanEngine::loadShaderModule(const char *filePath) {
     return module;
 }
 
-void VulkanEngine::initPipelines() {
+void VulkanEngine::createPipelines() {
     vk::ShaderModule triangleFragShader = loadShaderModule("shaders/hellotriangle.frag.spv");
     //Load mesh vertex shader
     vk::ShaderModule meshVertShader = loadShaderModule("shaders/tri_mesh.vert.spv");
@@ -926,6 +920,26 @@ void VulkanEngine::uploadMesh(Mesh &mesh) {
     std::copy(mesh.vertices.begin(), mesh.vertices.end(), data);
     //std::memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
     m_allocator.unmapMemory(mesh.vertexBuffer.allocation);
+}
+
+void VulkanEngine::recreateSwapChain() {
+    m_vkDevice.waitIdle();
+
+    cleanupSwapChain();
+    createSwapChain();
+    createFramebuffers();
+}
+
+void VulkanEngine::cleanupSwapChain() {
+    for (auto buf : m_swapChainFramebuffers) {
+        m_vkDevice.destroyFramebuffer(buf);
+    }
+    m_swapChainFramebuffers.clear();
+    for (auto view : m_swapChainImageViews) {
+        m_vkDevice.destroyImageView(view);
+    }
+    m_swapChainImageViews.clear();
+    m_vkDevice.destroySwapchainKHR(m_swapChain);
 }
 
 vk::Pipeline PipelineBuilder::buildPipeline(vk::Device device, vk::RenderPass pass) {

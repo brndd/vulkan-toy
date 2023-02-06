@@ -103,7 +103,7 @@ private:
     vk::CommandPool m_commandPool;
     std::vector<vk::CommandBuffer> m_commandBuffers;
     vk::RenderPass m_renderPass;
-    std::vector<vk::Framebuffer> m_framebuffers;
+    std::vector<vk::Framebuffer> m_swapChainFramebuffers;
     std::vector<vk::Semaphore> m_imageAvailableSemaphores;
     std::vector<vk::Semaphore> m_renderFinishedSemaphores;
     std::vector<vk::Fence> m_inFlightFences;
@@ -148,13 +148,17 @@ private:
 
     void createCommandPoolAndBuffers();
 
-    void initDefaultRenderPass();
+    void createDefaultRenderPass();
 
-    void initFramebuffers();
+    void createFramebuffers();
 
-    void initSyncStructures();
+    void createSyncStructures();
 
-    void initPipelines();
+    void createPipelines();
+
+    void recreateSwapChain();
+
+    void cleanupSwapChain();
 
     //This will throw if the shader modules fail to load.
     vk::ShaderModule loadShaderModule(const char * filePath);
