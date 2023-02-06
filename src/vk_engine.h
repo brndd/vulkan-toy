@@ -85,6 +85,7 @@ private:
     int m_selectedShader = 0;
     bool m_framebufferResized = false;
     DeletionQueue m_mainDeletionQueue;
+    DeletionQueue m_pipelineDeletionQueue;
     vma::Allocator m_allocator;
 
     // Vulkan members and handles
@@ -157,9 +158,12 @@ private:
 
     void createPipelines();
 
+    void recreatePipelines();
+
     void recreateSwapChain();
 
     void cleanupSwapChain();
+
 
     //This will throw if the shader modules fail to load.
     vk::ShaderModule loadShaderModule(const char * filePath);

@@ -75,7 +75,8 @@ void VulkanEngine::cleanup() {
         //Wait for the device to finish rendering before cleaning up
         m_vkDevice.waitIdle();
 
-        //Destroy all objects in the deletion queue
+        //Destroy all objects in the deletion queues
+        m_pipelineDeletionQueue.flush();
         m_mainDeletionQueue.flush();
 
         //Destroy objects that for some reason aren't in the deletion queue
@@ -114,6 +115,10 @@ void VulkanEngine::run() {
             else if (e.type == SDL_WINDOWEVENT) {
                 if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
                     std::cout << "[SDL_WINDOWEVENT] Resizing window..." << std::endl;
+                    int width = e.window.data1;
+                    int height = e.window.data2;
+                    m_windowExtent.width = width;
+                    m_windowExtent.height = height;
                     m_framebufferResized = true;
                 }
             }
@@ -231,6 +236,7 @@ void VulkanEngine::draw() {
     if (presentResult == vk::Result::eErrorOutOfDateKHR || presentResult == vk::Result::eSuboptimalKHR || m_framebufferResized) {
         m_framebufferResized = false;
         recreateSwapChain();
+        recreatePipelines();
     }
     else if (presentResult != vk::Result::eSuccess) {
         vk::throwResultException(nextImageResult, "Failed to present swap chain image.");
@@ -897,12 +903,11 @@ void VulkanEngine::createPipelines() {
     m_vkDevice.destroyShaderModule(triangleFragShader);
 
     //Queue destruction of pipelines
-    m_mainDeletionQueue.push_function([=]() {
+    m_pipelineDeletionQueue.push_function([=]() {
         m_vkDevice.destroyPipeline(m_meshPipeline);
 
         m_vkDevice.destroyPipelineLayout(m_meshPipelineLayout);
     });
-
 }
 
 void VulkanEngine::loadMeshes() {
@@ -963,6 +968,11 @@ void VulkanEngine::cleanupSwapChain() {
     }
     m_swapChainImageViews.clear();
     m_vkDevice.destroySwapchainKHR(m_swapChain);
+}
+
+void VulkanEngine::recreatePipelines() {
+    m_pipelineDeletionQueue.flush();
+    createPipelines();
 }
 
 vk::Pipeline PipelineBuilder::buildPipeline(vk::Device device, vk::RenderPass pass) {
