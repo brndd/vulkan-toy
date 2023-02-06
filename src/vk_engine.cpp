@@ -187,7 +187,8 @@ void VulkanEngine::draw() {
 
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_meshPipeline);
     vk::DeviceSize offset = 0;
-    cmd.bindVertexBuffers(0, 1, &m_triangleMesh.vertexBuffer.buffer, &offset);
+    cmd.bindVertexBuffers(0, 1, &m_rectangleMesh.vertexBuffer.buffer, &offset);
+    cmd.bindIndexBuffer(m_rectangleMesh.indexBuffer.buffer, 0, vk::IndexType::eUint16);
 
     //view matrix stuff
     glm::vec3 camPos = {0.0f, 0.0f, -3.0f};
@@ -196,7 +197,7 @@ void VulkanEngine::draw() {
     projection[1][1] *= -1;
 
     //Rotate based on frame number
-    glm::mat4 modelTransform = glm::rotate(glm::mat4{1.0f}, glm::radians(m_simulationTime * 100.0f), glm::vec3(0, 1, 0));
+    glm::mat4 modelTransform = glm::rotate(glm::mat4{1.0f}, glm::radians(m_simulationTime * 100.0f), glm::vec3(1, 1, 0));
 
     //Calculate final mesh matrix
     glm::mat4 meshMatrix = projection * view * modelTransform;
@@ -207,7 +208,8 @@ void VulkanEngine::draw() {
     //Stick it on the GPU via push constants
     cmd.pushConstants(m_meshPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(MeshPushConstants), &pushConstants);
 
-    cmd.draw(m_triangleMesh.vertices.size(), 1, 0, 0);
+    //Actually draw it
+    cmd.drawIndexed(static_cast<uint32_t>(m_rectangleMesh.indices.size()), 1, 0, 0, 0);
 
     //Finalize the render pass
     cmd.endRenderPass();
@@ -912,16 +914,19 @@ void VulkanEngine::createPipelines() {
 
 void VulkanEngine::loadMeshes() {
     //Hardcode a triangle mesh
-    m_triangleMesh.vertices.resize(3);
-    m_triangleMesh.vertices[0].position = {1.0f, -1.0f, 0.0f};
-    m_triangleMesh.vertices[1].position = {-1.0f, -1.0f, 0.0f};
-    m_triangleMesh.vertices[2].position = {0.0f, 1.0f, 0.0f};
-    m_triangleMesh.vertices[0].color = {1.0f, 0.0f, 0.0f};
-    m_triangleMesh.vertices[1].color = {0.0f, 1.0f, 0.0f};
-    m_triangleMesh.vertices[2].color = {0.0f, 0.0f, 1.0f};
+    m_rectangleMesh.vertices.resize(4);
+    m_rectangleMesh.vertices[0].position = {-0.5f, -0.5f, 0.0f};
+    m_rectangleMesh.vertices[1].position = {0.5f, -0.5f, 0.0f};
+    m_rectangleMesh.vertices[2].position = {0.5f, 0.5f, 0.0f};
+    m_rectangleMesh.vertices[3].position = {-0.5f, 0.5f, 0.0f};
+    m_rectangleMesh.vertices[0].color = {1.0f, 0.0f, 1.0f};
+    m_rectangleMesh.vertices[1].color = {0.0f, 1.0f, 0.0f};
+    m_rectangleMesh.vertices[2].color = {1.0f, 0.0f, 1.0f};
+    m_rectangleMesh.vertices[3].color = {0.0f, 1.0f, 0.0f};
+    m_rectangleMesh.indices = {0, 1, 2, 2, 3, 0};
     //Don't need normals yet
 
-    uploadMesh(m_triangleMesh);
+    uploadMesh(m_rectangleMesh);
 }
 
 void VulkanEngine::uploadMesh(Mesh &mesh) {
@@ -933,20 +938,35 @@ void VulkanEngine::uploadMesh(Mesh &mesh) {
     vma::AllocationCreateInfo vmaAllocInfo = {};
     vmaAllocInfo.usage  = vma::MemoryUsage::eCpuToGpu;
 
-    //Allocate the buffer
-    auto pair = m_allocator.createBuffer(bufferInfo, vmaAllocInfo);
-    mesh.vertexBuffer.buffer = pair.first;
-    mesh.vertexBuffer.allocation = pair.second;
-    //And queue its deletion
+    //Allocate the vertex buffer
+    auto vertexPair = m_allocator.createBuffer(bufferInfo, vmaAllocInfo);
+    mesh.vertexBuffer.buffer = vertexPair.first;
+    mesh.vertexBuffer.allocation = vertexPair.second;
+
+    //And the index buffer
+    bufferInfo.size = mesh.indices.size() * sizeof(uint16_t);
+    bufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer;
+    auto indexPair = m_allocator.createBuffer(bufferInfo, vmaAllocInfo);
+    mesh.indexBuffer.buffer = indexPair.first;
+    mesh.indexBuffer.allocation = indexPair.second;
+
+    //And queue their deletion
     m_mainDeletionQueue.push_function([=]() {
         m_allocator.destroyBuffer(mesh.vertexBuffer.buffer, mesh.vertexBuffer.allocation);
+        m_allocator.destroyBuffer(mesh.indexBuffer.buffer, mesh.indexBuffer.allocation);
     });
 
-    //Copy vertex data
-    Vertex *data = static_cast<Vertex *>(m_allocator.mapMemory(mesh.vertexBuffer.allocation));
-    std::copy(mesh.vertices.begin(), mesh.vertices.end(), data);
-    //std::memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
+    //Copy vertex vertexData
+    Vertex *vertexData = static_cast<Vertex *>(m_allocator.mapMemory(mesh.vertexBuffer.allocation));
+    std::copy(mesh.vertices.begin(), mesh.vertices.end(), vertexData);
+    //std::memcpy(vertexData, mesh.vertices.vertexData(), mesh.vertices.size() * sizeof(Vertex));
     m_allocator.unmapMemory(mesh.vertexBuffer.allocation);
+
+    //Copy index vertexData
+    uint16_t *indexData = static_cast<uint16_t *>(m_allocator.mapMemory(mesh.indexBuffer.allocation));
+    std::copy(mesh.indices.begin(), mesh.indices.end(), indexData);
+    m_allocator.unmapMemory(mesh.indexBuffer.allocation);
+
 }
 
 void VulkanEngine::recreateSwapChain() {

@@ -113,7 +113,7 @@ private:
     vk::PipelineLayout m_meshPipelineLayout;
 
     vk::Pipeline m_meshPipeline;
-    Mesh m_triangleMesh;
+    Mesh m_rectangleMesh;
 
     //
     // Private methods
