@@ -93,7 +93,11 @@ void VulkanEngine::draw() {
     m_vkDevice.resetFences(m_renderFence);
 
     //Request image from swapchain with one second timeout.
-    uint32_t swapChainImgIndex = m_vkDevice.acquireNextImageKHR(m_swapChain, S_TO_NS(1), m_presentSemaphore).value;
+
+    auto [nextImageResult, swapChainImgIndex] = m_vkDevice.acquireNextImageKHR(m_swapChain, S_TO_NS(1), m_presentSemaphore);
+    if (nextImageResult != vk::Result::eSuccess) {
+        vk::throwResultException(nextImageResult, "Failed to acquire swapchain image.");
+    }
 
 
     //Reset the command buffer now that commands are done executing.
