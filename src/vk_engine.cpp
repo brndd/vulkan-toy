@@ -837,6 +837,7 @@ vk::ShaderModule VulkanEngine::loadShaderModule(const char *filePath) {
     return module;
 }
 
+//TODO: use vk::PipelineCache to speed up rebuilding these
 void VulkanEngine::createPipelines() {
     vk::ShaderModule triangleFragShader = loadShaderModule("shaders/hellotriangle.frag.spv");
     //Load mesh vertex shader
@@ -855,13 +856,13 @@ void VulkanEngine::createPipelines() {
     //Build viewport and scissor
     pipelineBuilder.m_viewport.x = 0.0f;
     pipelineBuilder.m_viewport.y = 0.0f;
-    pipelineBuilder.m_viewport.width = static_cast<float>(m_windowExtent.width);
-    pipelineBuilder.m_viewport.height = static_cast<float>(m_windowExtent.height);
+    pipelineBuilder.m_viewport.width = static_cast<float>(m_swapChainExtent.width);
+    pipelineBuilder.m_viewport.height = static_cast<float>(m_swapChainExtent.height);
     pipelineBuilder.m_viewport.minDepth = 0.0f;
     pipelineBuilder.m_viewport.maxDepth = 1.0f;
 
     pipelineBuilder.m_scissor.offset = vk::Offset2D{0, 0};
-    pipelineBuilder.m_scissor.extent = m_windowExtent; //FIXME: do we need the "real" hiDPI-aware extent here?
+    pipelineBuilder.m_scissor.extent = m_swapChainExtent; //FIXME: do we need the "real" hiDPI-aware extent here?
 
     //Configure the rasterizer to draw filled rectangles
     pipelineBuilder.m_rasterizerInfo = vkinit::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill);
