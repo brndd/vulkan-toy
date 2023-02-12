@@ -50,6 +50,6 @@ endforeach(GLSL)
 add_custom_target(shaders DEPENDS ${SPIRV_BINARY_FILES})
 
 #Add main compilation target
-add_executable(vkeng src/main.cpp src/vk_engine.cpp src/vk_engine.h src/vk_initializers.cpp src/vk_initializers.h src/vk_types.h src/3rd_party/vk_mem_alloc.cpp src/vk_mesh.cpp src/vk_mesh.h)
+add_executable(vkeng src/main.cpp src/vk_engine.cpp src/vk_engine.h src/vk_initializers.cpp src/vk_initializers.h src/vk_types.h src/3rd_party/vk_mem_alloc.cpp src/vk_mesh.cpp src/vk_mesh.h src/3rd_party/tiny_obj_loader.cpp)
 target_link_libraries(vkeng ${Vulkan_LIBRARIES} ${SDL2_LIBRARIES}) #Depends on SDL2 and Vulkan
 add_dependencies(vkeng shaders) #Depends on shaders being compiled
