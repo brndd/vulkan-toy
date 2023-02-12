@@ -93,3 +93,45 @@ vk::PipelineLayoutCreateInfo vkinit::pipelineLayoutCreateInfo() {
 
     return info;
 }
+
+vk::ImageCreateInfo vkinit::imageCreateInfo(vk::Format format, vk::ImageUsageFlags usageFlags, vk::Extent3D extent) {
+    vk::ImageCreateInfo info = {};
+    info.imageType = vk::ImageType::e2D;
+    info.format = format;
+    info.extent = extent;
+    info.mipLevels = 1;
+    info.arrayLayers = 1;
+    info.samples = vk::SampleCountFlagBits::e1;
+    info.tiling = vk::ImageTiling::eOptimal;
+    info.usage = usageFlags;
+
+    return info;
+}
+
+vk::ImageViewCreateInfo
+vkinit::imageViewCreateInfo(vk::Format format, vk::Image image, vk::ImageAspectFlags aspectFlags) {
+    vk::ImageViewCreateInfo info = {};
+    info.viewType = vk::ImageViewType::e2D;
+    info.image = image;
+    info.format = format;
+    info.subresourceRange.baseMipLevel = 0;
+    info.subresourceRange.levelCount = 1;
+    info.subresourceRange.baseArrayLayer = 0;
+    info.subresourceRange.layerCount = 1;
+    info.subresourceRange.aspectMask = aspectFlags;
+    return info;
+}
+
+vk::PipelineDepthStencilStateCreateInfo
+vkinit::depthStencilStateCreateInfo(bool depthTest, bool depthWrite, vk::CompareOp compareOp) {
+    vk::PipelineDepthStencilStateCreateInfo info = {};
+    info.depthTestEnable = depthTest ? VK_TRUE : VK_FALSE;
+    info.depthWriteEnable = depthWrite ? VK_TRUE : VK_FALSE;
+    info.depthCompareOp = depthTest ? compareOp : vk::CompareOp::eAlways;
+    info.depthBoundsTestEnable = VK_FALSE;
+    info.minDepthBounds = 0.0f; //optional
+    info.maxDepthBounds = 1.0f; //optional
+    info.stencilTestEnable = VK_FALSE;
+
+    return info;
+}

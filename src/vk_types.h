@@ -12,4 +12,9 @@ struct AllocatedBuffer {
     vma::Allocation allocation;
 };
 
+struct AllocatedImage {
+    vk::Image image;
+    vma::Allocation allocation;
+};
+
 #endif //VKENG_VK_TYPES_H

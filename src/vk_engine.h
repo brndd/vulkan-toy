@@ -97,18 +97,27 @@ private:
     vk::SurfaceKHR m_vkSurface;
     vk::Queue m_graphicsQueue;
     vk::Queue m_presentQueue;
+    vk::CommandPool m_commandPool;
+    std::vector<vk::CommandBuffer> m_commandBuffers;
+    vk::RenderPass m_renderPass;
+
+    //Swap chain
     vk::SwapchainKHR m_swapChain;
     std::vector<vk::Image> m_swapChainImages;
     vk::Format m_swapChainImageFormat;
     vk::Extent2D m_swapChainExtent;
     std::vector<vk::ImageView> m_swapChainImageViews;
-    vk::CommandPool m_commandPool;
-    std::vector<vk::CommandBuffer> m_commandBuffers;
-    vk::RenderPass m_renderPass;
     std::vector<vk::Framebuffer> m_swapChainFramebuffers;
+
+    //Synchronisation structures
     std::vector<vk::Semaphore> m_imageAvailableSemaphores;
     std::vector<vk::Semaphore> m_renderFinishedSemaphores;
     std::vector<vk::Fence> m_inFlightFences;
+
+    //Depth buffer
+    AllocatedImage m_depthImage;
+    vk::ImageView m_depthImageView;
+    vk::Format m_depthFormat;
 
     vk::PipelineLayout m_meshPipelineLayout;
 
@@ -186,6 +195,7 @@ public:
     vk::PipelineColorBlendAttachmentState m_colorBlendAttachmentState;
     vk::PipelineMultisampleStateCreateInfo m_multisampleInfo;
     vk::PipelineLayout m_pipelineLayout;
+    vk::PipelineDepthStencilStateCreateInfo m_depthStencil;
 
     vk::Pipeline buildPipeline(vk::Device device, vk::RenderPass pass);
 

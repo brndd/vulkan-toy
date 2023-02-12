@@ -26,6 +26,11 @@ namespace vkinit {
 
     vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo();
 
+    vk::ImageCreateInfo imageCreateInfo(vk::Format format, vk::ImageUsageFlags usageFlags, vk::Extent3D extent);
+
+    vk::ImageViewCreateInfo imageViewCreateInfo(vk::Format format, vk::Image image, vk::ImageAspectFlags aspectFlags);
+
+    vk::PipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo(bool depthTest, bool depthWrite, vk::CompareOp compareOp);
 }
 
 
