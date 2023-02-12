@@ -13,9 +13,10 @@ if (CMAKE_BUILD_TYPE MATCHES Debug)
     add_definitions(-DDEBUG)
 endif()
 
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(BUILD_DIR ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${BUILD_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BUILD_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUILD_DIR})
 
 #Include SDL2
 find_package(SDL2 REQUIRED)
@@ -37,7 +38,7 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES CONFIGURE_DEPENDS "src/shaders/*.frag" "src/
 foreach(GLSL ${GLSL_SOURCE_FILES})
     message(STATUS "BUILDING SHADER")
     get_filename_component(FILE_NAME ${GLSL} NAME)
-    set(SPIRV "${CMAKE_BINARY_DIR}/bin/shaders/${FILE_NAME}.spv") #Compile under bin/shaders/
+    set(SPIRV "${BUILD_DIR}/shaders/${FILE_NAME}.spv") #Compile under bin/shaders/
     message(STATUS ${GLSL})
     add_custom_command(
         OUTPUT ${SPIRV}
@@ -53,3 +54,10 @@ add_custom_target(shaders DEPENDS ${SPIRV_BINARY_FILES})
 add_executable(vkeng src/main.cpp src/vk_engine.cpp src/vk_engine.h src/vk_initializers.cpp src/vk_initializers.h src/vk_types.h src/3rd_party/vk_mem_alloc.cpp src/vk_mesh.cpp src/vk_mesh.h src/3rd_party/tiny_obj_loader.cpp)
 target_link_libraries(vkeng ${Vulkan_LIBRARIES} ${SDL2_LIBRARIES}) #Depends on SDL2 and Vulkan
 add_dependencies(vkeng shaders) #Depends on shaders being compiled
+
+#Symlink data into the build directory
+add_custom_command(TARGET vkeng POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+        "${CMAKE_SOURCE_DIR}/data"
+        "${BUILD_DIR}/data")
+add_custom_target(symlink_data ALL DEPENDS "${CMAKE_BINARY_DIR}/data")
