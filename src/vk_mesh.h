@@ -24,6 +24,8 @@ struct Mesh {
     std::vector<uint16_t> indices;
     AllocatedBuffer vertexBuffer;
     AllocatedBuffer indexBuffer;
+
+    bool loadFromObj(const char* filename);
 };
 
 

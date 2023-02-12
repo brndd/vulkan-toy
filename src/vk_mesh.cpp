@@ -1,4 +1,6 @@
 #include "vk_mesh.h"
+#include <tiny_obj_loader.h>
+#include <iostream>
 
 VertexInputDescription Vertex::getVertexDescription() {
     VertexInputDescription description;
@@ -35,4 +37,88 @@ VertexInputDescription Vertex::getVertexDescription() {
     description.attributes.push_back(normalAttribute);
     description.attributes.push_back(colorAttribute);
     return description;
+}
+
+bool Mesh::loadFromObj(const char *filename) {
+    tinyobj::ObjReaderConfig readerConfig;
+    readerConfig.mtl_search_path = "data/assets/";
+
+    tinyobj::ObjReader reader;
+
+    if (!reader.ParseFromFile(filename, readerConfig)) {
+        if (!reader.Error().empty()) {
+            std::cerr << "[ERR] TinyObjReader: " << reader.Error();
+        }
+        return false;
+    }
+    if (!reader.Warning().empty()) {
+        std::cout << "[WARN] TinyObjReader: " << reader.Warning();
+    }
+
+    auto & attrib = reader.GetAttrib();
+    auto & shapes = reader.GetShapes();
+    auto & materials = reader.GetMaterials();
+
+    //This is straight ripped off from the tinyobjloader examples and let me tell you it's kinda horrible
+    //Iterate over shapes
+    for (size_t s = 0; s < shapes.size(); s++) {
+        size_t index_offset = 0;
+
+        //Iterate over faces of the shape
+        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            size_t fv = shapes[s].mesh.num_face_vertices[f];
+            if (fv != 3) {
+                std::cerr << "[ERR] TinyObjReader: too many vertices (" << fv << ") on face in mesh " << filename << std::endl;
+                return false;
+            }
+
+            //Iterate over vertices of the face
+            for (size_t v = 0; v < fv; v++) {
+                Vertex new_vertex;
+
+                //access to vertex
+                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+
+                tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
+                tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
+                tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
+
+                new_vertex.position.x = vx;
+                new_vertex.position.y = vy;
+                new_vertex.position.z = vz;
+
+                //Check if normal_index is zero or positive. Negative = no normal data.
+                if (idx.normal_index >= 0) {
+                    tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
+                    tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
+                    tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
+
+                    new_vertex.normal.x = nx;
+                    new_vertex.normal.y = ny;
+                    new_vertex.normal.z = nz;
+
+                    //Set the vertex color to normal coords for visualization purposes
+                    new_vertex.color = new_vertex.normal;
+                }
+
+                //Check if texcoord_index is zero or positive. Negative = no normal data.
+                if (idx.texcoord_index >= 0) {
+                    tinyobj::real_t tx = attrib.texcoords[2 * idx.texcoord_index + 0];
+                    tinyobj::real_t ty = attrib.texcoords[2 * idx.texcoord_index + 1];
+                }
+
+                // Optional: vertex colors
+                // tinyobj::real_t red   = attrib.colors[3 * idx.vertex_index + 0];
+                // tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
+                // tinyobj::real_t blue  = attrib.colors[3 * idx.vertex_index + 2];
+
+                this->vertices.push_back(new_vertex);
+            }
+            index_offset += fv;
+            //Per-face material
+            //shapes[s].mesh.material_ids[f];
+        }
+    }
+
+    return true;
 }
