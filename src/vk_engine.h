@@ -114,6 +114,7 @@ private:
 
     vk::Pipeline m_meshPipeline;
     Mesh m_rectangleMesh;
+    Mesh m_monkeyMesh;
 
     //
     // Private methods

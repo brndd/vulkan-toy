@@ -187,8 +187,13 @@ void VulkanEngine::draw() {
 
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_meshPipeline);
     vk::DeviceSize offset = 0;
-    cmd.bindVertexBuffers(0, 1, &m_rectangleMesh.vertexBuffer.buffer, &offset);
-    cmd.bindIndexBuffer(m_rectangleMesh.indexBuffer.buffer, 0, vk::IndexType::eUint16);
+
+    //Triangle mesh w/ index buffers
+//    cmd.bindVertexBuffers(0, 1, &m_rectangleMesh.vertexBuffer.buffer, &offset);
+//    cmd.bindIndexBuffer(m_rectangleMesh.indexBuffer.buffer, 0, vk::IndexType::eUint16);
+
+    //Monke mesh w/o index buffers
+    cmd.bindVertexBuffers(0, 1, &m_monkeyMesh.vertexBuffer.buffer, &offset);
 
     //view matrix stuff
     glm::vec3 camPos = {0.0f, 0.0f, -3.0f};
@@ -209,7 +214,8 @@ void VulkanEngine::draw() {
     cmd.pushConstants(m_meshPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(MeshPushConstants), &pushConstants);
 
     //Actually draw it
-    cmd.drawIndexed(static_cast<uint32_t>(m_rectangleMesh.indices.size()), 1, 0, 0, 0);
+//    cmd.drawIndexed(static_cast<uint32_t>(m_rectangleMesh.indices.size()), 1, 0, 0, 0);
+    cmd.draw(static_cast<uint32_t>(m_monkeyMesh.vertices.size()), 1, 0, 0);
 
     //Finalize the render pass
     cmd.endRenderPass();
@@ -927,7 +933,11 @@ void VulkanEngine::loadMeshes() {
     m_rectangleMesh.indices = {0, 1, 2, 2, 3, 0};
     //Don't need normals yet
 
+    //Monke mesh
+    m_monkeyMesh.loadFromObj("data/assets/monkey_smooth.obj");
+
     uploadMesh(m_rectangleMesh);
+    uploadMesh(m_monkeyMesh);
 }
 
 void VulkanEngine::uploadMesh(Mesh &mesh) {
@@ -945,17 +955,23 @@ void VulkanEngine::uploadMesh(Mesh &mesh) {
     mesh.vertexBuffer.allocation = vertexPair.second;
 
     //And the index buffer
-    bufferInfo.size = mesh.indices.size() * sizeof(uint16_t);
-    bufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer;
-    auto indexPair = m_allocator.createBuffer(bufferInfo, vmaAllocInfo);
-    mesh.indexBuffer.buffer = indexPair.first;
-    mesh.indexBuffer.allocation = indexPair.second;
+    if (!mesh.indices.empty()) {
+        bufferInfo.size = mesh.indices.size() * sizeof(uint16_t);
+        bufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer;
+        auto indexPair = m_allocator.createBuffer(bufferInfo, vmaAllocInfo);
+        mesh.indexBuffer.buffer = indexPair.first;
+        mesh.indexBuffer.allocation = indexPair.second;
+    }
 
     //And queue their deletion
     m_mainDeletionQueue.push_function([=]() {
         m_allocator.destroyBuffer(mesh.vertexBuffer.buffer, mesh.vertexBuffer.allocation);
-        m_allocator.destroyBuffer(mesh.indexBuffer.buffer, mesh.indexBuffer.allocation);
     });
+    if (!mesh.indices.empty()) {
+        m_mainDeletionQueue.push_function([=]() {
+            m_allocator.destroyBuffer(mesh.indexBuffer.buffer, mesh.indexBuffer.allocation);
+        });
+    }
 
     //Copy vertex vertexData
     Vertex *vertexData = static_cast<Vertex *>(m_allocator.mapMemory(mesh.vertexBuffer.allocation));
@@ -964,10 +980,11 @@ void VulkanEngine::uploadMesh(Mesh &mesh) {
     m_allocator.unmapMemory(mesh.vertexBuffer.allocation);
 
     //Copy index vertexData
-    uint16_t *indexData = static_cast<uint16_t *>(m_allocator.mapMemory(mesh.indexBuffer.allocation));
-    std::copy(mesh.indices.begin(), mesh.indices.end(), indexData);
-    m_allocator.unmapMemory(mesh.indexBuffer.allocation);
-
+    if (!mesh.indices.empty()) {
+        uint16_t *indexData = static_cast<uint16_t *>(m_allocator.mapMemory(mesh.indexBuffer.allocation));
+        std::copy(mesh.indices.begin(), mesh.indices.end(), indexData);
+        m_allocator.unmapMemory(mesh.indexBuffer.allocation);
+    }
 }
 
 void VulkanEngine::recreateSwapChain() {
