@@ -314,8 +314,8 @@ void VulkanEngine::createInstance() {
         instanceCreateInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
         // Set up debug messenger for the instance
+        vk::DebugUtilsMessengerCreateInfoEXT debugCreateInfo;
         if (enableValidationLayers) {
-            vk::DebugUtilsMessengerCreateInfoEXT debugCreateInfo;
             instanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
             instanceCreateInfo.ppEnabledLayerNames = validationLayers.data();
 
