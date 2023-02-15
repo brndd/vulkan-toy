@@ -640,23 +640,21 @@ void VulkanEngine::createDefaultRenderPass() {
     depthDependency.dstStageMask = vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests;
     depthDependency.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
 
-    vk::SubpassDependency dependencies[2] = {colorDependency, depthDependency};
-
     vk::SubpassDescription subpass = {};
     subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
     subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
-    vk::AttachmentDescription attachments[2] = {colorAttachment, depthAttachment};
-
     //Finally, create the actual render pass
     vk::RenderPassCreateInfo createInfo = {};
-    createInfo.attachmentCount = 2;
+    vk::SubpassDependency dependencies[2] = {colorDependency, depthDependency};
+    vk::AttachmentDescription attachments[2] = {colorAttachment, depthAttachment};
+    createInfo.attachmentCount = std::size(attachments);
     createInfo.pAttachments = &attachments[0];
     createInfo.subpassCount = 1;
     createInfo.pSubpasses = &subpass;
-    createInfo.dependencyCount = 2;
+    createInfo.dependencyCount = std::size(dependencies);
     createInfo.pDependencies = &dependencies[0];
 
     m_renderPass = m_vkDevice.createRenderPass(createInfo);
