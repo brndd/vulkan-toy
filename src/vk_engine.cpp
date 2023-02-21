@@ -67,6 +67,8 @@ void VulkanEngine::init() {
 
     loadMeshes();
 
+    initScene();
+
     m_isInitialized = true;
 }
 
@@ -191,6 +193,7 @@ void VulkanEngine::draw() {
     //
     cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 
+    /*
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_meshPipeline);
     vk::DeviceSize offset = 0;
 
@@ -214,7 +217,7 @@ void VulkanEngine::draw() {
     glm::mat4 meshMatrix = projection * view * modelTransform;
 
     MeshPushConstants pushConstants;
-    pushConstants.render_matrix = meshMatrix;
+    pushConstants.renderMatrix = meshMatrix;
 
     //Stick it on the GPU via push constants
     cmd.pushConstants(m_meshPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(MeshPushConstants), &pushConstants);
@@ -222,6 +225,9 @@ void VulkanEngine::draw() {
     //Actually draw it
 //    cmd.drawIndexed(static_cast<uint32_t>(m_rectangleMesh.indices.size()), 1, 0, 0, 0);
     cmd.draw(static_cast<uint32_t>(m_monkeyMesh.vertices.size()), 1, 0, 0);
+*/
+
+    drawObjects(cmd, m_renderables.data(), m_renderables.size());
 
     //Finalize the render pass
     cmd.endRenderPass();
@@ -257,6 +263,44 @@ void VulkanEngine::draw() {
     }
 
     m_frameNumber++;
+}
+
+void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int count) {
+    glm::vec3 camPos = {0.0f, -6.0f, -10.0f};
+    glm::mat4 view = glm::translate(glm::mat4(1.0f), camPos);
+    glm::mat4 projection = glm::perspective(glm::radians(70.0f), 1700.0f / 900.0f, 0.1f, 200.0f);
+    projection[1][1] *= -1;
+
+    Mesh* lastMesh = nullptr;
+    Material* lastMaterial = nullptr;
+
+    //TODO: sort array by pipeline pointer to reduce number of binds, maybe?
+    for (int i = 0; i < count; i++) {
+        RenderObject& object = first[i];
+
+        //Only bind the pipeline if it doesn't match the already bound one
+        if (object.material != lastMaterial) {
+            cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, object.material->pipeline);
+            lastMaterial = object.material;
+        }
+
+        glm::mat4 model = object.transformMatrix;
+        glm::mat4 renderMatrix = projection * view * model;
+
+        MeshPushConstants constants;
+        constants.renderMatrix = renderMatrix;
+
+        cmd.pushConstants(object.material->pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(MeshPushConstants), &constants);
+
+        //Only bind the mesh if it doesn't match the already bound one
+        if (object.mesh != lastMesh) {
+            vk::DeviceSize offset = 0;
+            cmd.bindVertexBuffers(0, 1, &object.mesh->vertexBuffer.buffer, &offset);
+            lastMesh = object.mesh;
+        }
+
+        cmd.draw(object.mesh->vertices.size(), 1, 0, 0);
+    }
 }
 
 void VulkanEngine::createInstance() {
@@ -554,7 +598,7 @@ void VulkanEngine::createCommandPoolAndBuffers() {
         createInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
         m_commandPool = m_vkDevice.createCommandPool(createInfo);
 
-        m_mainDeletionQueue.push_function([=]() {
+        m_mainDeletionQueue.pushFunction([=]() {
             m_vkDevice.destroyCommandPool(m_commandPool);
         });
     }
@@ -658,8 +702,8 @@ void VulkanEngine::createDefaultRenderPass() {
     createInfo.pDependencies = &dependencies[0];
 
     m_renderPass = m_vkDevice.createRenderPass(createInfo);
-    m_mainDeletionQueue.push_function([=]() {
-       m_vkDevice.destroyRenderPass(m_renderPass);
+    m_mainDeletionQueue.pushFunction([=]() {
+        m_vkDevice.destroyRenderPass(m_renderPass);
     });
 }
 
@@ -698,7 +742,7 @@ void VulkanEngine::createSyncStructures() {
     }
 
 
-    m_mainDeletionQueue.push_function([=]() {
+    m_mainDeletionQueue.pushFunction([=]() {
         for (int i = 0; i < FRAMES_IN_FLIGHT; i++) {
             m_vkDevice.destroyFence(m_inFlightFences[i]);
             m_vkDevice.destroySemaphore(m_imageAvailableSemaphores[i]);
@@ -729,8 +773,26 @@ void VulkanEngine::initVulkan() {
     createCommandPoolAndBuffers();
     createDefaultRenderPass();
     createFramebuffers();
+}
 
+void VulkanEngine::initScene() {
+    RenderObject monkey;
+    monkey.mesh = getMesh("monkey");
+    monkey.material = getMaterial("defaultmesh");
+    monkey.transformMatrix = glm::mat4{1.0f};
+    m_renderables.push_back(monkey);
 
+    for (int i = -20; i <= 20; i++) {
+        for (int j = -20; j <= 20; j++) {
+            RenderObject rect;
+            rect.mesh = getMesh("rectangle");
+            rect.material = getMaterial("defaultmesh");
+            glm::mat4 translation = glm::translate(glm::mat4{1.0}, glm::vec3{i, 0, j});
+            glm::mat4 scale = glm::scale(glm::mat4{1.0}, glm::vec3(0.2, 0.2, 0.2));
+            rect.transformMatrix = translation * scale;
+            m_renderables.push_back(rect);
+        }
+    }
 }
 
 bool VulkanEngine::checkValidationLayerSupport() {
@@ -971,12 +1033,15 @@ void VulkanEngine::createPipelines() {
     //Finally, build the pipeline
     m_meshPipeline = pipelineBuilder.buildPipeline(m_vkDevice, m_renderPass);
 
+    //Add the pipeline to our materials
+    createMaterial(m_meshPipeline, m_meshPipelineLayout, "defaultmesh");
+
     //Destroy shader modules
     m_vkDevice.destroyShaderModule(meshVertShader);
     m_vkDevice.destroyShaderModule(triangleFragShader);
 
     //Queue destruction of pipelines
-    m_pipelineDeletionQueue.push_function([=]() {
+    m_pipelineDeletionQueue.pushFunction([=]() {
         m_vkDevice.destroyPipeline(m_meshPipeline);
 
         m_vkDevice.destroyPipelineLayout(m_meshPipelineLayout);
@@ -1002,6 +1067,9 @@ void VulkanEngine::loadMeshes() {
 
     uploadMesh(m_rectangleMesh);
     uploadMesh(m_monkeyMesh);
+
+    m_meshes["monkey"] = m_monkeyMesh;
+    m_meshes["rectangle"] = m_rectangleMesh;
 }
 
 void VulkanEngine::uploadMesh(Mesh &mesh) {
@@ -1028,11 +1096,11 @@ void VulkanEngine::uploadMesh(Mesh &mesh) {
     }
 
     //And queue their deletion
-    m_mainDeletionQueue.push_function([=]() {
+    m_mainDeletionQueue.pushFunction([=]() {
         m_allocator.destroyBuffer(mesh.vertexBuffer.buffer, mesh.vertexBuffer.allocation);
     });
     if (!mesh.indices.empty()) {
-        m_mainDeletionQueue.push_function([=]() {
+        m_mainDeletionQueue.pushFunction([=]() {
             m_allocator.destroyBuffer(mesh.indexBuffer.buffer, mesh.indexBuffer.allocation);
         });
     }

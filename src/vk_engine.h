@@ -44,7 +44,7 @@ struct RenderObject {
 struct DeletionQueue {
     std::deque<std::function<void()>> deleters;
 
-    void push_function(std::function<void()> && func) {
+    void pushFunction(std::function<void()> && func) {
         deleters.push_back(func);
     }
 
@@ -58,7 +58,7 @@ struct DeletionQueue {
 
 struct MeshPushConstants {
     glm::vec4 data;
-    glm::mat4 render_matrix;
+    glm::mat4 renderMatrix;
 };
 
 class VulkanEngine {
@@ -91,6 +91,8 @@ public:
     //https://github.com/bitwizeshift/result
     Material * getMaterial(const std::string& name);
     Mesh * getMesh(const std::string& name);
+
+    void drawObjects(vk::CommandBuffer cmd, RenderObject * first, int count);
 
 private:
     //
@@ -146,6 +148,7 @@ private:
     //Vector of objects in the scene
     std::vector<RenderObject> m_renderables;
     //Materials, indexed by material name
+    //TODO: these should not be stringly typed
     std::unordered_map<std::string, Material> m_materials;
     //Meshes, indexed by mesh name
     std::unordered_map<std::string, Mesh> m_meshes;
@@ -155,6 +158,8 @@ private:
     //
 
     void initVulkan();
+
+    void initScene();
 
     bool checkValidationLayerSupport();
 
