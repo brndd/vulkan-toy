@@ -142,8 +142,6 @@ private:
     vk::PipelineLayout m_meshPipelineLayout;
 
     vk::Pipeline m_meshPipeline;
-    Mesh m_rectangleMesh;
-    Mesh m_monkeyMesh;
 
     //Vector of objects in the scene
     std::vector<RenderObject> m_renderables;

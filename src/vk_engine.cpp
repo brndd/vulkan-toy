@@ -193,40 +193,6 @@ void VulkanEngine::draw() {
     //
     cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 
-    /*
-    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_meshPipeline);
-    vk::DeviceSize offset = 0;
-
-    //Triangle mesh w/ index buffers
-//    cmd.bindVertexBuffers(0, 1, &m_rectangleMesh.vertexBuffer.buffer, &offset);
-//    cmd.bindIndexBuffer(m_rectangleMesh.indexBuffer.buffer, 0, vk::IndexType::eUint16);
-
-    //Monke mesh w/o index buffers
-    cmd.bindVertexBuffers(0, 1, &m_monkeyMesh.vertexBuffer.buffer, &offset);
-
-    //view matrix stuff
-    glm::vec3 camPos = {0.0f, 0.0f, -3.0f};
-    glm::mat4 view = glm::translate(glm::mat4(1.0f), camPos);
-    glm::mat4 projection = glm::perspective(glm::radians(70.0f), 1700.0f / 900.0f, 0.1f, 200.0f);
-    projection[1][1] *= -1;
-
-    //Rotate based on frame number
-    glm::mat4 modelTransform = glm::rotate(glm::mat4{1.0f}, glm::radians(m_simulationTime * 100.0f), glm::vec3(1, 1, 0));
-
-    //Calculate final mesh matrix
-    glm::mat4 meshMatrix = projection * view * modelTransform;
-
-    MeshPushConstants pushConstants;
-    pushConstants.renderMatrix = meshMatrix;
-
-    //Stick it on the GPU via push constants
-    cmd.pushConstants(m_meshPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(MeshPushConstants), &pushConstants);
-
-    //Actually draw it
-//    cmd.drawIndexed(static_cast<uint32_t>(m_rectangleMesh.indices.size()), 1, 0, 0, 0);
-    cmd.draw(static_cast<uint32_t>(m_monkeyMesh.vertices.size()), 1, 0, 0);
-*/
-
     drawObjects(cmd, m_renderables.data(), m_renderables.size());
 
     //Finalize the render pass
@@ -1050,26 +1016,28 @@ void VulkanEngine::createPipelines() {
 
 void VulkanEngine::loadMeshes() {
     //Hardcode a triangle mesh
-    m_rectangleMesh.vertices.resize(4);
-    m_rectangleMesh.vertices[0].position = {-0.5f, -0.5f, 0.0f};
-    m_rectangleMesh.vertices[1].position = {0.5f, -0.5f, 0.0f};
-    m_rectangleMesh.vertices[2].position = {0.5f, 0.5f, 0.0f};
-    m_rectangleMesh.vertices[3].position = {-0.5f, 0.5f, 0.0f};
-    m_rectangleMesh.vertices[0].color = {1.0f, 0.0f, 1.0f};
-    m_rectangleMesh.vertices[1].color = {0.0f, 1.0f, 0.0f};
-    m_rectangleMesh.vertices[2].color = {1.0f, 0.0f, 1.0f};
-    m_rectangleMesh.vertices[3].color = {0.0f, 1.0f, 0.0f};
-    m_rectangleMesh.indices = {0, 1, 2, 2, 3, 0};
-    //Don't need normals yet
+    Mesh rect;
+    rect.vertices.resize(4);
+    rect.vertices[0].position = {-0.5f, -0.5f, 0.0f};
+    rect.vertices[1].position = {0.5f, -0.5f, 0.0f};
+    rect.vertices[2].position = {0.5f, 0.5f, 0.0f};
+    rect.vertices[3].position = {-0.5f, 0.5f, 0.0f};
+    rect.vertices[0].color = {1.0f, 0.0f, 1.0f};
+    rect.vertices[1].color = {0.0f, 1.0f, 0.0f};
+    rect.vertices[2].color = {1.0f, 0.0f, 1.0f};
+    rect.vertices[3].color = {0.0f, 1.0f, 0.0f};
+    rect.indices = {0, 1, 2, 2, 3, 0};
+    //Don't need normals (yet)
 
     //Monke mesh
-    m_monkeyMesh.loadFromObj("data/assets/monkey_smooth.obj");
+    Mesh monke;
+    monke.loadFromObj("data/assets/monkey_smooth.obj");
 
-    uploadMesh(m_rectangleMesh);
-    uploadMesh(m_monkeyMesh);
+    uploadMesh(rect);
+    uploadMesh(monke);
 
-    m_meshes["monkey"] = m_monkeyMesh;
-    m_meshes["rectangle"] = m_rectangleMesh;
+    m_meshes["monkey"] = monke;
+    m_meshes["rectangle"] = rect;
 }
 
 void VulkanEngine::uploadMesh(Mesh &mesh) {
