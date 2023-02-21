@@ -26,6 +26,17 @@ struct SwapChainSupportDetails {
     std::vector<vk::PresentModeKHR> presentModes;
 };
 
+struct Material {
+    vk::Pipeline pipeline;
+    vk::PipelineLayout pipelineLayout;
+};
+
+struct RenderObject {
+    Mesh * mesh;
+    Material * material;
+    glm::mat4 transformMatrix;
+};
+
 /*
  * Simple (and somewhat inefficient) deletion queue for cleaning up Vulkan objects when the engine exists.
  * Heavily inspired by vkguide.dev (like everything else here)
@@ -73,6 +84,13 @@ public:
             VkDebugUtilsMessageTypeFlagsEXT messageType,
             const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
             void* pUserData);
+
+    Material * createMaterial(vk::Pipeline pipeline, vk::PipelineLayout layout, const std::string& name);
+
+    //TODO: make these return a Result struct instead of nullptr on failure
+    //https://github.com/bitwizeshift/result
+    Material * getMaterial(const std::string& name);
+    Mesh * getMesh(const std::string& name);
 
 private:
     //
@@ -124,6 +142,13 @@ private:
     vk::Pipeline m_meshPipeline;
     Mesh m_rectangleMesh;
     Mesh m_monkeyMesh;
+
+    //Vector of objects in the scene
+    std::vector<RenderObject> m_renderables;
+    //Materials, indexed by material name
+    std::unordered_map<std::string, Material> m_materials;
+    //Meshes, indexed by mesh name
+    std::unordered_map<std::string, Mesh> m_meshes;
 
     //
     // Private methods

@@ -1080,6 +1080,30 @@ void VulkanEngine::recreatePipelines() {
     createPipelines();
 }
 
+Material *VulkanEngine::createMaterial(vk::Pipeline pipeline, vk::PipelineLayout layout, const std::string &name) {
+    Material mat;
+    mat.pipeline = pipeline;
+    mat.pipelineLayout = layout;
+    m_materials[name] = mat;
+    return &m_materials[name];
+}
+
+Material *VulkanEngine::getMaterial(const std::string &name) {
+    auto it = m_materials.find(name);
+    if (it == m_materials.end()) {
+        return nullptr;
+    }
+    return &(it->second);
+}
+
+Mesh *VulkanEngine::getMesh(const std::string &name) {
+    auto it = m_meshes.find(name);
+    if (it == m_meshes.end()) {
+        return nullptr;
+    }
+    return &(it->second);
+}
+
 vk::Pipeline PipelineBuilder::buildPipeline(vk::Device device, vk::RenderPass pass) {
     //Create viewportstate from the stored viewport and scissor.
     //At the moment we don't support multiple viewports or scissors.
