@@ -12,7 +12,8 @@ namespace vkinit {
     vk::PipelineShaderStageCreateInfo
     pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits stage, vk::ShaderModule shaderModule);
 
-
+    vk::CommandPoolCreateInfo
+    commandPoolCreateInfo(uint32_t graphicsFamilyIndex, vk::CommandPoolCreateFlags createFlags);
 
     vk::PipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo();
 

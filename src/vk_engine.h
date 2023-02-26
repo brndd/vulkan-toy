@@ -9,7 +9,7 @@
 #include "vk_types.h"
 #include "vk_mesh.h"
 
-const int FRAMES_IN_FLIGHT = 2;
+constexpr int FRAMES_IN_FLIGHT = 2;
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
@@ -35,6 +35,15 @@ struct RenderObject {
     Mesh * mesh;
     Material * material;
     glm::mat4 transformMatrix;
+};
+
+struct FrameData {
+    vk::Semaphore imageAvailableSemaphore;
+    vk::Semaphore renderFinishedSemaphore;
+    vk::Fence inFlightFence;
+
+    vk::CommandPool commandPool;
+    vk::CommandBuffer mainCommandBuffer;
 };
 
 /*
@@ -117,9 +126,9 @@ private:
     vk::SurfaceKHR m_vkSurface;
     vk::Queue m_graphicsQueue;
     vk::Queue m_presentQueue;
-    vk::CommandPool m_commandPool;
-    std::vector<vk::CommandBuffer> m_commandBuffers;
     vk::RenderPass m_renderPass;
+
+    FrameData m_frames[FRAMES_IN_FLIGHT];
 
     //Swap chain
     vk::SwapchainKHR m_swapChain;
@@ -128,11 +137,6 @@ private:
     vk::Extent2D m_swapChainExtent;
     std::vector<vk::ImageView> m_swapChainImageViews;
     std::vector<vk::Framebuffer> m_swapChainFramebuffers;
-
-    //Synchronisation structures
-    std::vector<vk::Semaphore> m_imageAvailableSemaphores;
-    std::vector<vk::Semaphore> m_renderFinishedSemaphores;
-    std::vector<vk::Fence> m_inFlightFences;
 
     //Depth buffer
     AllocatedImage m_depthImage;
@@ -173,6 +177,7 @@ private:
     vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availableModes);
     vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR & capabilities);
 
+    FrameData & getCurrentFrame();
 
     void createInstance();
 

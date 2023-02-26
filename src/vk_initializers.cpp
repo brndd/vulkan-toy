@@ -1,5 +1,14 @@
 #include "vk_initializers.h"
 
+vk::CommandPoolCreateInfo
+vkinit::commandPoolCreateInfo(uint32_t graphicsFamilyIndex, vk::CommandPoolCreateFlags createFlags) {
+    vk::CommandPoolCreateInfo info = {};
+    info.queueFamilyIndex = graphicsFamilyIndex;
+    info.flags = createFlags;
+
+    return info;
+}
+
 vk::PipelineShaderStageCreateInfo vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits stage, vk::ShaderModule shaderModule) {
     vk::PipelineShaderStageCreateInfo info = {};
 
