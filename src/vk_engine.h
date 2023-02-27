@@ -37,6 +37,13 @@ struct RenderObject {
     glm::mat4 transformMatrix;
 };
 
+//Holds view matrix, projection matrix and view*projection matrix.
+struct GPUCameraData {
+    glm::mat4 view;
+    glm::mat4 projection;
+    glm::mat4 viewProjection;
+};
+
 struct FrameData {
     vk::Semaphore imageAvailableSemaphore;
     vk::Semaphore renderFinishedSemaphore;
@@ -44,6 +51,10 @@ struct FrameData {
 
     vk::CommandPool commandPool;
     vk::CommandBuffer mainCommandBuffer;
+
+    AllocatedBuffer cameraBuffer;
+
+    vk::DescriptorSet globalDescriptor;
 };
 
 /*
@@ -155,6 +166,10 @@ private:
     //Meshes, indexed by mesh name
     std::unordered_map<std::string, Mesh> m_meshes;
 
+    //Descriptor sets
+    vk::DescriptorPool m_descriptorPool;
+    vk::DescriptorSetLayout m_globalDescriptorSetLayout;
+
     //
     // Private methods
     //
@@ -199,6 +214,8 @@ private:
 
     void createSyncStructures();
 
+    void createDescriptors();
+
     void createPipelines();
 
     void recreatePipelines();
@@ -213,6 +230,8 @@ private:
 
     void loadMeshes();
     void uploadMesh(Mesh &mesh);
+
+    AllocatedBuffer createBuffer(size_t size, vk::BufferUsageFlags usageFlags, vma::MemoryUsage memoryUsage);
 };
 
 //sweet lord what is happening in here??

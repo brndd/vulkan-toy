@@ -10,9 +10,16 @@ layout(push_constant) uniform constants
 {
     vec4 data;
     mat4 render_matrix;
-} PushConstants;
+} pushConstants;
+
+layout(set = 0, binding = 0) uniform CameraBuffer{
+    mat4 view;
+    mat4 projection;
+    mat4 viewProjection;
+} cameraData;
 
 void main() {
-    gl_Position = PushConstants.render_matrix * vec4(vPosition, 1.0f);
+    mat4 transformMatrix = (cameraData.viewProjection * pushConstants.render_matrix);
+    gl_Position = transformMatrix * vec4(vPosition, 1.0f);
     outColor = vColor;
 }
