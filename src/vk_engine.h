@@ -81,6 +81,14 @@ struct MeshPushConstants {
     glm::mat4 renderMatrix;
 };
 
+struct GPUSceneData {
+    glm::vec4 fogColor; //w is exponent
+    glm::vec4 fogDistances; //zw unused
+    glm::vec4 ambientColor;
+    glm::vec4 sunlightDirection; //w is intensity
+    glm::vec4 sunlightColor;
+};
+
 class VulkanEngine {
 public:
     //
@@ -113,13 +121,12 @@ public:
     Mesh * getMesh(const std::string& name);
 
     void drawObjects(vk::CommandBuffer cmd, RenderObject * first, int count);
-
 private:
     //
     // Private members
     //
     bool m_isInitialized = false;
-    int m_frameNumber = 0;
+    uint64_t m_frameNumber = 0;
     float m_simulationTime = 0.0f; //Simulation time in seconds
     struct SDL_Window* m_sdlWindow = nullptr;
     int m_selectedShader = 0;
@@ -138,6 +145,7 @@ private:
     vk::Queue m_graphicsQueue;
     vk::Queue m_presentQueue;
     vk::RenderPass m_renderPass;
+    vk::PhysicalDeviceProperties m_gpuProperties;
 
     FrameData m_frames[FRAMES_IN_FLIGHT];
 
@@ -165,6 +173,9 @@ private:
     std::unordered_map<std::string, Material> m_materials;
     //Meshes, indexed by mesh name
     std::unordered_map<std::string, Mesh> m_meshes;
+
+    GPUSceneData m_sceneParameters;
+    AllocatedBuffer m_sceneParameterBuffer;
 
     //Descriptor sets
     vk::DescriptorPool m_descriptorPool;
@@ -232,6 +243,9 @@ private:
     void uploadMesh(Mesh &mesh);
 
     AllocatedBuffer createBuffer(size_t size, vk::BufferUsageFlags usageFlags, vma::MemoryUsage memoryUsage);
+    void destroyBuffer(AllocatedBuffer buffer);
+
+    size_t padUniformBufferSize(size_t originalSize);
 };
 
 //sweet lord what is happening in here??
