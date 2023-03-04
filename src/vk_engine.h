@@ -59,6 +59,12 @@ struct FrameData {
     vk::DescriptorSet objectDescriptor;
 };
 
+struct UploadContext {
+    vk::Fence uploadFence;
+    vk::CommandPool commandPool;
+    vk::CommandBuffer commandBuffer;
+};
+
 /*
  * Simple (and somewhat inefficient) deletion queue for cleaning up Vulkan objects when the engine exists.
  * Heavily inspired by vkguide.dev (like everything else here)
@@ -140,6 +146,7 @@ private:
     DeletionQueue m_mainDeletionQueue;
     DeletionQueue m_pipelineDeletionQueue;
     vma::Allocator m_allocator;
+    UploadContext m_uploadContext; //context for uploading data (meshes, textures) to GPU memory
 
     // Vulkan members and handles
     vk::Extent2D m_windowExtent{640, 480};
@@ -253,6 +260,8 @@ private:
     void destroyBuffer(AllocatedBuffer buffer);
 
     size_t padUniformBufferSize(size_t originalSize);
+
+    void submitImmediateCommand(std::function<void(vk::CommandBuffer cmd)> && function);
 };
 
 //sweet lord what is happening in here??
