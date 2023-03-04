@@ -53,8 +53,10 @@ struct FrameData {
     vk::CommandBuffer mainCommandBuffer;
 
     AllocatedBuffer cameraBuffer;
+    AllocatedBuffer objectBuffer;
 
     vk::DescriptorSet globalDescriptor;
+    vk::DescriptorSet objectDescriptor;
 };
 
 /*
@@ -87,6 +89,10 @@ struct GPUSceneData {
     glm::vec4 ambientColor;
     glm::vec4 sunlightDirection; //w is intensity
     glm::vec4 sunlightColor;
+};
+
+struct GPUObjectData {
+    glm::mat4 modelMatrix;
 };
 
 class VulkanEngine {
@@ -180,6 +186,7 @@ private:
     //Descriptor sets
     vk::DescriptorPool m_descriptorPool;
     vk::DescriptorSetLayout m_globalDescriptorSetLayout;
+    vk::DescriptorSetLayout m_objectDescriptorSetLayout;
 
     //
     // Private methods

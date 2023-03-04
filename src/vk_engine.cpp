@@ -242,6 +242,8 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
     glm::mat4 projection = glm::perspective(glm::radians(70.0f), aspect, 0.1f, 200.0f);
     projection[1][1] *= -1;
 
+    auto curFrame = getCurrentFrame();
+
     //Fill the camera data struct...
     GPUCameraData camData;
     camData.view = view;
@@ -249,9 +251,9 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
     camData.viewProjection = projection * view;
 
     //...and copy it into the buffer
-    GPUCameraData * data = static_cast<GPUCameraData *>(m_allocator.mapMemory(getCurrentFrame().cameraBuffer.allocation));
+    GPUCameraData * data = static_cast<GPUCameraData *>(m_allocator.mapMemory(curFrame.cameraBuffer.allocation));
     memcpy(data, &camData, sizeof(GPUCameraData));
-    m_allocator.unmapMemory(getCurrentFrame().cameraBuffer.allocation);
+    m_allocator.unmapMemory(curFrame.cameraBuffer.allocation);
 
     //Change global illumination tint over time
     float uTime = m_simulationTime;
@@ -265,19 +267,25 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
     memcpy(sceneData, &m_sceneParameters, sizeof(GPUSceneData));
     m_allocator.unmapMemory(m_sceneParameterBuffer.allocation);
 
+    //Copy object matrices into storage buffer
+    GPUObjectData* objectSSBO = static_cast<GPUObjectData *>(m_allocator.mapMemory(curFrame.objectBuffer.allocation)); //unmapped after the object loop
+
     Mesh* lastMesh = nullptr;
     Material* lastMaterial = nullptr;
 
     //TODO: sort array by pipeline pointer to reduce number of binds, maybe?
     for (int i = 0; i < count; i++) {
         RenderObject& object = first[i];
+        objectSSBO[i].modelMatrix = object.transformMatrix;
 
         //Only bind the pipeline if it doesn't match the already bound one
         if (object.material != lastMaterial) {
             cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, object.material->pipeline);
             lastMaterial = object.material;
-            //Bind the descriptor set when changing pipeline
-            cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, object.material->pipelineLayout, 0, getCurrentFrame().globalDescriptor, uniformOffset);
+            //Bind the camera data descriptor set when changing pipeline
+            cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, object.material->pipelineLayout, 0, curFrame.globalDescriptor, uniformOffset);
+            //Bind the object descriptor set too
+            cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, object.material->pipelineLayout, 1, curFrame.objectDescriptor, nullptr);
         }
 
         MeshPushConstants constants;
@@ -292,8 +300,10 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
             lastMesh = object.mesh;
         }
 
-        cmd.draw(object.mesh->vertices.size(), 1, 0, 0);
+        cmd.draw(object.mesh->vertices.size(), 1, 0, i); //FIXME: we're hackily using the firstInstance parameter here to pass instance index to the shader, and I do not like it.
     }
+
+    m_allocator.unmapMemory(curFrame.objectBuffer.allocation);
 }
 
 void VulkanEngine::createInstance() {
@@ -400,28 +410,26 @@ void VulkanEngine::selectPhysicalDevice() {
     //
     // Select physical device
     //
-    {
-        auto physicalDevices = m_instance.enumeratePhysicalDevices();
-        if (physicalDevices.empty()) {
-            throw std::runtime_error("Failed to find GPUs with Vulkan support.");
-        }
-
-        std::multimap<int, vk::PhysicalDevice> candidates;
-        for (const auto &device: physicalDevices) {
-            int score = scoreDevice(device);
-            candidates.insert(std::make_pair(score, device));
-        }
-
-        if (candidates.rbegin()->first > 0) {
-            m_activeGPU = candidates.rbegin()->second;
-        }
-
-        if (!m_activeGPU) {
-            throw std::runtime_error("Failed to find a GPU that meets minimum requirements.");
-        }
-
-        std::cout << "Using physical device " << m_activeGPU.getProperties().deviceName << "." << std::endl;
+    auto physicalDevices = m_instance.enumeratePhysicalDevices();
+    if (physicalDevices.empty()) {
+        throw std::runtime_error("Failed to find GPUs with Vulkan support.");
     }
+
+    std::multimap<int, vk::PhysicalDevice> candidates;
+    for (const auto &device: physicalDevices) {
+        int score = scoreDevice(device);
+        candidates.insert(std::make_pair(score, device));
+    }
+
+    if (candidates.rbegin()->first > 0) {
+        m_activeGPU = candidates.rbegin()->second;
+    }
+
+    if (!m_activeGPU) {
+        throw std::runtime_error("Failed to find a GPU that meets minimum requirements.");
+    }
+
+    std::cout << "Using physical device " << m_activeGPU.getProperties().deviceName << "." << std::endl;
 }
 
 void VulkanEngine::createLogicalDevice() {
@@ -445,13 +453,17 @@ void VulkanEngine::createLogicalDevice() {
         }
 
         //Specify used device features
-        vk::PhysicalDeviceFeatures deviceFeatures = {};
+        vk::PhysicalDeviceFeatures2 deviceFeatures = {};
+        deviceFeatures.features.geometryShader = VK_TRUE;
+        vk::PhysicalDeviceVulkan11Features vk11Features = {};
+        deviceFeatures.pNext = &vk11Features;
+        vk11Features.shaderDrawParameters = VK_TRUE;
 
         //Actually create the logical device
         vk::DeviceCreateInfo createInfo = {};
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
-        createInfo.pEnabledFeatures = &deviceFeatures;
+        createInfo.pNext = &deviceFeatures;
 
         createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
         createInfo.ppEnabledExtensionNames = deviceExtensions.data();
@@ -730,6 +742,10 @@ void VulkanEngine::createSyncStructures() {
 }
 
 void VulkanEngine::createDescriptors() {
+    //
+    // Descriptor set layout 0
+    //
+
     //Bind camera data at 0
     vk::DescriptorSetLayoutBinding camBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex, 0);
 
@@ -738,18 +754,31 @@ void VulkanEngine::createDescriptors() {
 
     vk::DescriptorSetLayoutBinding bindings[] = {camBinding, sceneBinding};
 
-    vk::DescriptorSetLayoutCreateInfo setInfo = {};
-    setInfo.setBindings(bindings);
+    vk::DescriptorSetLayoutCreateInfo set0Info = {};
+    set0Info.setBindings(bindings);
 
-    m_globalDescriptorSetLayout = m_vkDevice.createDescriptorSetLayout(setInfo);
+    m_globalDescriptorSetLayout = m_vkDevice.createDescriptorSetLayout(set0Info);
     m_mainDeletionQueue.pushFunction([=] () {
         m_vkDevice.destroyDescriptorSetLayout(m_globalDescriptorSetLayout);
+    });
+
+    //
+    // Descriptor set layout 1
+    //
+    vk::DescriptorSetLayoutBinding objBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eVertex, 0);
+
+    vk::DescriptorSetLayoutCreateInfo set1Info = {};
+    set1Info.setBindings(objBinding);
+    m_objectDescriptorSetLayout = m_vkDevice.createDescriptorSetLayout(set1Info);
+    m_mainDeletionQueue.pushFunction([=] () {
+        m_vkDevice.destroyDescriptorSetLayout(m_objectDescriptorSetLayout);
     });
 
     //Create a descriptor pool to hold 10 uniform buffers, and 10 dynamic uniform buffers
     std::vector<vk::DescriptorPoolSize> sizes = {
             { vk::DescriptorType::eUniformBuffer, 10 },
-            { vk::DescriptorType::eUniformBufferDynamic, 10 }
+            { vk::DescriptorType::eUniformBufferDynamic, 10 },
+            { vk::DescriptorType::eStorageBuffer, 10 }
     };
 
     vk::DescriptorPoolCreateInfo poolCreateInfo = {};
@@ -768,13 +797,18 @@ void VulkanEngine::createDescriptors() {
         destroyBuffer(m_sceneParameterBuffer);
     });
 
-    //Create buffers for camera data
+    //Create per-frame buffers
     for (int i = 0; i < std::size(m_frames); i++) {
         auto & frame = m_frames[i];
+
+        const int MAX_OBJECTS = 10000;
+        frame.objectBuffer = createBuffer(sizeof(GPUObjectData) * MAX_OBJECTS, vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eCpuToGpu);
+
         frame.cameraBuffer = createBuffer(sizeof(GPUCameraData), vk::BufferUsageFlagBits::eUniformBuffer, vma::MemoryUsage::eCpuToGpu);
 
         m_mainDeletionQueue.pushFunction([=] () {
-            m_allocator.destroyBuffer(frame.cameraBuffer.buffer, frame.cameraBuffer.allocation);
+            destroyBuffer(frame.objectBuffer);
+            destroyBuffer(frame.cameraBuffer);
         });
 
         //Allocate one descriptor set for each frame
@@ -797,9 +831,25 @@ void VulkanEngine::createDescriptors() {
         sceneInfo.offset = 0; //this is a dynamic buffer, therefore 0
         sceneInfo.range = sizeof(GPUSceneData);
 
+        //Allocate object descriptor set
+        vk::DescriptorSetAllocateInfo objAllocateInfo = {};
+        objAllocateInfo.descriptorPool = m_descriptorPool;
+        objAllocateInfo.descriptorSetCount = 1;
+        objAllocateInfo.setSetLayouts(m_objectDescriptorSetLayout);
+
+        frame.objectDescriptor = m_vkDevice.allocateDescriptorSets(objAllocateInfo)[0];
+
+        //Point the object descriptor to the object buffer
+        vk::DescriptorBufferInfo objectInfo = {};
+        objectInfo.buffer = frame.objectBuffer.buffer;
+        objectInfo.offset = 0;
+        objectInfo.range = sizeof(GPUObjectData) * MAX_OBJECTS;
+
+
         vk::WriteDescriptorSet cameraWrite = vkinit::writeDescriptorSet(vk::DescriptorType::eUniformBuffer, frame.globalDescriptor, &cameraInfo, 0);
         vk::WriteDescriptorSet sceneWrite = vkinit::writeDescriptorSet(vk::DescriptorType::eUniformBufferDynamic, frame.globalDescriptor, &sceneInfo, 1);
-        vk::WriteDescriptorSet setWrite[] = {cameraWrite, sceneWrite};
+        vk::WriteDescriptorSet objectWrite = vkinit::writeDescriptorSet(vk::DescriptorType::eStorageBuffer, frame.objectDescriptor, &objectInfo, 0);
+        vk::WriteDescriptorSet setWrite[] = {cameraWrite, sceneWrite, objectWrite};
 
         m_vkDevice.updateDescriptorSets(setWrite, nullptr);
     }
@@ -899,13 +949,29 @@ VkBool32 VulkanEngine::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT mess
  */
 int VulkanEngine::scoreDevice(const vk::PhysicalDevice &device) {
     auto deviceProperties = device.getProperties();
-    auto deviceFeatures = device.getFeatures();
+
+    vk::PhysicalDeviceFeatures2 physicalDeviceFeatures2 = {};
+    vk::PhysicalDeviceVulkan11Features vk11Features = {};
+    physicalDeviceFeatures2.pNext = &vk11Features;
+    vk::PhysicalDeviceVulkan12Features vk12Features = {};
+    vk11Features.pNext = &vk12Features;
+    vk::PhysicalDeviceVulkan13Features vk13Features = {};
+    vk12Features.pNext = &vk13Features;
+
+    device.getFeatures2(&physicalDeviceFeatures2);
+    auto vk10Features = physicalDeviceFeatures2.features;
     int score = 0;
 
     //The device must have a geometry shader to be useful
-    if (!deviceFeatures.geometryShader) {
+    if (!vk10Features.geometryShader) {
         return 0;
     }
+    //We also need shader draw parameters
+    //TODO: refactor required features so that they're only in one place, rather than duplicated in here and in createLogicalDevice()
+    if (!vk11Features.shaderDrawParameters) {
+        return 0;
+    }
+
     //The device must support a queue family with VK_QUEUE_GRAPHICS_BIT to be useful
     QueueFamilyIndices indices = findQueueFamilies(device);
     if (!indices.isComplete()) {
@@ -1071,8 +1137,9 @@ void VulkanEngine::createPipelines() {
     pushConstantRange.stageFlags = vk::ShaderStageFlagBits::eVertex;
     meshPipelineInfo.setPushConstantRanges(pushConstantRange);
 
-    //Hook up global descriptor set
-    meshPipelineInfo.setSetLayouts(m_globalDescriptorSetLayout);
+    //Hook up the set layouts
+    vk::DescriptorSetLayout setLayouts[] = {m_globalDescriptorSetLayout, m_objectDescriptorSetLayout};
+    meshPipelineInfo.setSetLayouts(setLayouts);
 
     m_meshPipelineLayout = m_vkDevice.createPipelineLayout(meshPipelineInfo); //queued for deletion at the bottom of this func
 
