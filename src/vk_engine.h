@@ -101,6 +101,11 @@ struct GPUObjectData {
     glm::mat4 modelMatrix;
 };
 
+struct Texture {
+    AllocatedImage image;
+    vk::ImageView imageView;
+};
+
 class VulkanEngine {
 public:
     //
@@ -186,6 +191,8 @@ private:
     std::unordered_map<std::string, Material> m_materials;
     //Meshes, indexed by mesh name
     std::unordered_map<std::string, Mesh> m_meshes;
+    //Textures, indexed by texture name
+    std::unordered_map<std::string, Texture> m_textures;
 
     GPUSceneData m_sceneParameters;
     AllocatedBuffer m_sceneParameterBuffer;
@@ -262,6 +269,9 @@ private:
     size_t padUniformBufferSize(size_t originalSize);
 
     void submitImmediateCommand(std::function<void(vk::CommandBuffer cmd)> && function);
+
+    void loadTextures();
+    AllocatedImage loadImageFromFile(const char * filename);
 };
 
 //sweet lord what is happening in here??

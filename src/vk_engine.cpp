@@ -3,6 +3,7 @@
 #include <SDL.h>
 #include <SDL_vulkan.h>
 #include <glm/gtx/transform.hpp>
+#include <stb_image.h>
 
 #include <iostream>
 #include <chrono>
@@ -70,6 +71,8 @@ void VulkanEngine::init() {
     createPipelines();
 
     loadMeshes();
+
+    loadTextures();
 
     initScene();
 
@@ -1218,6 +1221,8 @@ void VulkanEngine::loadMeshes() {
 
     m_meshes["monkey"] = monke;
     m_meshes["rectangle"] = rect;
+
+    std::cout << "Loaded meshes." << std::endl;
 }
 
 //Uploads a mesh to a GPU local buffer
@@ -1358,6 +1363,110 @@ void VulkanEngine::submitImmediateCommand(std::function<void(vk::CommandBuffer)>
     m_vkDevice.waitForFences(m_uploadContext.uploadFence, true, S_TO_NS(5));
     m_vkDevice.resetFences(m_uploadContext.uploadFence);
     m_vkDevice.resetCommandPool(m_uploadContext.commandPool);
+}
+
+AllocatedImage VulkanEngine::loadImageFromFile(const char *filename) {
+    int texWidth, texHeight, texChannels;
+
+    //Load  image from file
+    unsigned char * pixels = stbi_load(filename, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    if (!pixels) {
+        std::cout << "Failed to load texture from file " << filename << std::endl;
+        throw std::invalid_argument("Failed to load texture");
+    }
+
+    //Create staging buffer to hold the image
+    vk::DeviceSize imgSize = texWidth * texHeight * 4; //4 bytes per pixel
+    vk::Format imgFormat = vk::Format::eR8G8B8A8Srgb; //...and RGBA
+    AllocatedBuffer stagingBuffer = createBuffer(imgSize, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eCpuOnly);
+
+    //Copy pixel data into staging buffer
+    unsigned char * stagingData = static_cast<unsigned char *>(m_allocator.mapMemory(stagingBuffer.allocation));
+    memcpy(stagingData, pixels, static_cast<size_t>(imgSize));
+    m_allocator.unmapMemory(stagingBuffer.allocation);
+
+    stbi_image_free(pixels);
+
+
+    //Create the image
+    vk::Extent3D imgExtent = {};
+    imgExtent.width = static_cast<uint32_t>(texWidth);
+    imgExtent.height = static_cast<uint32_t>(texHeight);
+    imgExtent.depth = 1;
+
+    vk::ImageCreateInfo imgCreateInfo = vkinit::imageCreateInfo(imgFormat, vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst, imgExtent);
+    vma::AllocationCreateInfo imgAllocInfo = {};
+    imgAllocInfo.usage = vma::MemoryUsage::eGpuOnly;
+    auto imgPair = m_allocator.createImage(imgCreateInfo, imgAllocInfo);
+    AllocatedImage image;
+    image.image = imgPair.first;
+    image.allocation = imgPair.second;
+
+    //Copy the image
+    submitImmediateCommand([=](vk::CommandBuffer cmd) {
+        //First, transform the image, so it can be written to
+        vk::ImageSubresourceRange range = {};
+        range.aspectMask = vk::ImageAspectFlagBits::eColor;
+        range.baseMipLevel = 0;
+        range.levelCount = 1;
+        range.baseArrayLayer = 0;
+        range.layerCount = 1;
+
+        vk::ImageMemoryBarrier imgBarrier_toTransfer = {};
+        imgBarrier_toTransfer.oldLayout = vk::ImageLayout::eUndefined;
+        imgBarrier_toTransfer.newLayout = vk::ImageLayout::eTransferDstOptimal;
+        imgBarrier_toTransfer.image = image.image;
+        imgBarrier_toTransfer.subresourceRange = range;
+        imgBarrier_toTransfer.srcAccessMask = vk::AccessFlagBits::eNone;
+        imgBarrier_toTransfer.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
+        //This barrier transitions the image into the transfer write layout
+        cmd.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, {}, nullptr, nullptr, imgBarrier_toTransfer);
+
+        //Next, transfer the image from the staging buffer into the image
+        vk::BufferImageCopy copyRegion = {};
+        copyRegion.bufferOffset = 0;
+        copyRegion.bufferRowLength = 0;
+        copyRegion.bufferImageHeight = 0;
+        copyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageExtent = imgExtent;
+
+        cmd.copyBufferToImage(stagingBuffer.buffer, image.image, vk::ImageLayout::eTransferDstOptimal, copyRegion);
+
+        //The image is now copied, so we need to transform it once more into a shader-readable layout
+        vk::ImageMemoryBarrier imgBarrier_toReadable = imgBarrier_toTransfer;
+        imgBarrier_toReadable.oldLayout = vk::ImageLayout::eTransferDstOptimal;
+        imgBarrier_toReadable.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        imgBarrier_toReadable.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+        imgBarrier_toReadable.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+        //This barrier transitions the image into shader readable layout
+        cmd.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, imgBarrier_toReadable);
+    });
+
+    //Cleanup
+    m_mainDeletionQueue.pushFunction([=]() {
+        m_allocator.destroyImage(image.image, image.allocation);
+    });
+    destroyBuffer(stagingBuffer);
+
+    std::cout << "Loaded texture " << filename << std::endl;
+
+    return image;
+}
+
+void VulkanEngine::loadTextures() {
+    Texture lostEmpire;
+    lostEmpire.image = loadImageFromFile("data/assets/lost_empire-RGBA.png");
+    vk::ImageViewCreateInfo imgInfo = vkinit::imageViewCreateInfo(vk::Format::eR8G8B8A8Srgb, lostEmpire.image.image, vk::ImageAspectFlagBits::eColor);
+    lostEmpire.imageView = m_vkDevice.createImageView(imgInfo);
+    m_textures["empire_diffuse"] = lostEmpire;
+    m_mainDeletionQueue.pushFunction([=]() {
+        m_vkDevice.destroyImageView(lostEmpire.imageView);
+    });
+
+    std::cout << "Loaded textures." << std::endl;
 }
 
 vk::Pipeline PipelineBuilder::buildPipeline(vk::Device device, vk::RenderPass pass) {
