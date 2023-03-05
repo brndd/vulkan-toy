@@ -289,6 +289,11 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
             cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, object.material->pipelineLayout, 0, curFrame.globalDescriptor, uniformOffset);
             //Bind the object descriptor set too
             cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, object.material->pipelineLayout, 1, curFrame.objectDescriptor, nullptr);
+
+            //Bind the texture descriptor set, if relevant
+            if (object.material->textureSet.has_value()) {
+                cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, object.material->pipelineLayout, 2, object.material->textureSet.value(), nullptr);
+            }
         }
 
         MeshPushConstants constants;
@@ -796,11 +801,24 @@ void VulkanEngine::createDescriptors() {
         m_vkDevice.destroyDescriptorSetLayout(m_objectDescriptorSetLayout);
     });
 
+    //
+    // Descriptor set layout 2. We don't allocate it here yet.
+    //
+    vk::DescriptorSetLayoutBinding texBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 0);
+
+    vk::DescriptorSetLayoutCreateInfo set2Info = {};
+    set2Info.setBindings(texBinding);
+    m_singleTextureDescriptorSetLayout = m_vkDevice.createDescriptorSetLayout(set2Info);
+    m_mainDeletionQueue.pushFunction([=]() {
+        m_vkDevice.destroyDescriptorSetLayout(m_singleTextureDescriptorSetLayout);
+    });
+
     //Create a descriptor pool to hold 10 uniform buffers, and 10 dynamic uniform buffers
     std::vector<vk::DescriptorPoolSize> sizes = {
             { vk::DescriptorType::eUniformBuffer, 10 },
             { vk::DescriptorType::eUniformBufferDynamic, 10 },
-            { vk::DescriptorType::eStorageBuffer, 10 }
+            { vk::DescriptorType::eStorageBuffer, 10 },
+            { vk::DescriptorType::eCombinedImageSampler, 10 }
     };
 
     vk::DescriptorPoolCreateInfo poolCreateInfo = {};
@@ -922,6 +940,37 @@ void VulkanEngine::initScene() {
             m_renderables.push_back(rect);
         }
     }
+
+    //
+    // Minecraft level
+    //
+    RenderObject mine;
+    mine.mesh = getMesh("mine");
+    mine.material = getMaterial("texturedmesh");
+    mine.transformMatrix = glm::translate(glm::vec3{5, -10, 0});
+    m_renderables.push_back(mine);
+
+    //Create a sampler to hold the texture for the texturedmesh material
+    vk::SamplerCreateInfo samplerInfo = vkinit::samplerCreateInfo(vk::Filter::eNearest); //nearest neighbour for that minecraft look
+    vk::Sampler blockySampler = m_vkDevice.createSampler(samplerInfo);
+    m_mainDeletionQueue.pushFunction([=]() {
+        m_vkDevice.destroySampler(blockySampler);
+    });
+
+    //Allocate the descriptor set for single-use texture on the material
+    vk::DescriptorSetAllocateInfo allocInfo = {};
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.setSetLayouts(m_singleTextureDescriptorSetLayout);
+    auto textureSet = m_vkDevice.allocateDescriptorSets(allocInfo)[0];
+    mine.material->textureSet = textureSet;
+
+    //Point the descriptor set to the texture (called "empire_diffuse")
+    vk::DescriptorImageInfo imgInfo = {};
+    imgInfo.sampler = blockySampler;
+    imgInfo.imageView = m_textures["empire_diffuse"].imageView;
+    imgInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+    vk::WriteDescriptorSet tex1 = vkinit::writeDescriptorSet(vk::DescriptorType::eCombinedImageSampler, textureSet, &imgInfo, 0);
+    m_vkDevice.updateDescriptorSets(tex1, nullptr);
 }
 
 bool VulkanEngine::checkValidationLayerSupport() {
@@ -1112,8 +1161,12 @@ vk::ShaderModule VulkanEngine::loadShaderModule(const char *filePath) {
 }
 
 //TODO: use vk::PipelineCache to speed up rebuilding these
+//TODO: actually just refactor this whole function, jfc
 void VulkanEngine::createPipelines() {
+    //Default placeholder shader
     vk::ShaderModule defaultLitFragShader = loadShaderModule("shaders/default_lit.frag.spv");
+    //Textured shader
+    vk::ShaderModule defaultTexFragShader = loadShaderModule("shaders/textured_lit.frag.spv");
     //Load mesh vertex shader
     vk::ShaderModule meshVertShader = loadShaderModule("shaders/tri_mesh.vert.spv");
     std::cout << "Loaded shaders." << std::endl;
@@ -1147,7 +1200,9 @@ void VulkanEngine::createPipelines() {
     //a single blend attachment with no blending, writing to RGBA
     pipelineBuilder.m_colorBlendAttachmentState = vkinit::pipelineColorBlendAttachmentState();
 
+    //
     //Build the mesh pipeline
+    //
     VertexInputDescription vertexDescription = Vertex::getVertexDescription();
 
     vk::PipelineLayoutCreateInfo meshPipelineInfo = vkinit::pipelineLayoutCreateInfo();
@@ -1185,15 +1240,33 @@ void VulkanEngine::createPipelines() {
     //Add the pipeline to our materials
     createMaterial(m_meshPipeline, m_meshPipelineLayout, "defaultmesh");
 
+    //
+    //Build a pipeline for textured mesh
+    //
+    vk::PipelineLayoutCreateInfo texPipelineInfo = meshPipelineInfo;
+    vk::DescriptorSetLayout texSetLayouts[] = {m_globalDescriptorSetLayout, m_objectDescriptorSetLayout, m_singleTextureDescriptorSetLayout};
+    texPipelineInfo.setSetLayouts(texSetLayouts);
+
+    auto texPipelineLayout = m_vkDevice.createPipelineLayout(texPipelineInfo);
+    pipelineBuilder.m_shaderStageInfos.clear();
+    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eVertex, meshVertShader));
+    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eFragment, defaultTexFragShader));
+    pipelineBuilder.m_pipelineLayout = texPipelineLayout;
+    auto texPipeline = pipelineBuilder.buildPipeline(m_vkDevice, m_renderPass);
+    createMaterial(texPipeline, texPipelineLayout, "texturedmesh");
+
     //Destroy shader modules
     m_vkDevice.destroyShaderModule(meshVertShader);
     m_vkDevice.destroyShaderModule(defaultLitFragShader);
+    m_vkDevice.destroyShaderModule(defaultTexFragShader);
 
     //Queue destruction of pipelines
     m_pipelineDeletionQueue.pushFunction([=]() {
         m_vkDevice.destroyPipeline(m_meshPipeline);
-
         m_vkDevice.destroyPipelineLayout(m_meshPipelineLayout);
+
+        m_vkDevice.destroyPipeline(texPipeline);
+        m_vkDevice.destroyPipelineLayout(texPipelineLayout);
     });
 }
 
@@ -1211,16 +1284,20 @@ void VulkanEngine::loadMeshes() {
     rect.vertices[3].color = {0.0f, 1.0f, 0.0f};
     rect.indices = {0, 1, 2, 2, 3, 0};
     //Don't need normals (yet)
+    uploadMesh(rect);
+    m_meshes["rectangle"] = rect;
 
     //Monke mesh
     Mesh monke;
     monke.loadFromObj("data/assets/monkey_smooth.obj");
-
-    uploadMesh(rect);
     uploadMesh(monke);
-
     m_meshes["monkey"] = monke;
-    m_meshes["rectangle"] = rect;
+
+    //Minecraft mesh
+    Mesh mine;
+    mine.loadFromObj("data/assets/lost_empire.obj");
+    uploadMesh(mine);
+    m_meshes["mine"] = mine;
 
     std::cout << "Loaded meshes." << std::endl;
 }

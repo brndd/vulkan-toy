@@ -27,6 +27,7 @@ struct SwapChainSupportDetails {
 };
 
 struct Material {
+    std::optional<vk::DescriptorSet> textureSet;
     vk::Pipeline pipeline;
     vk::PipelineLayout pipelineLayout;
 };
@@ -201,6 +202,7 @@ private:
     vk::DescriptorPool m_descriptorPool;
     vk::DescriptorSetLayout m_globalDescriptorSetLayout;
     vk::DescriptorSetLayout m_objectDescriptorSetLayout;
+    vk::DescriptorSetLayout m_singleTextureDescriptorSetLayout;
 
     //
     // Private methods

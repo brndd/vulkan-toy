@@ -36,6 +36,12 @@ namespace vkinit {
     vk::DescriptorSetLayoutBinding descriptorSetLayoutBinding(vk::DescriptorType type, vk::ShaderStageFlags flags, uint32_t binding);
 
     vk::WriteDescriptorSet writeDescriptorSet(vk::DescriptorType type, vk::DescriptorSet dstSet, vk::DescriptorBufferInfo* bufferInfo, uint32_t binding);
+
+    vk::WriteDescriptorSet writeDescriptorSet(vk::DescriptorType type, vk::DescriptorSet dstSet, vk::DescriptorImageInfo* imageInfo, uint32_t binding);
+
+    vk::SamplerCreateInfo samplerCreateInfo(vk::Filter filters, vk::SamplerAddressMode addressMode = vk::SamplerAddressMode::eRepeat);
+
+
 }
 
 

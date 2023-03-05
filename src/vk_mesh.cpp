@@ -33,9 +33,17 @@ VertexInputDescription Vertex::getVertexDescription() {
     colorAttribute.format = vk::Format::eR32G32B32Sfloat;
     colorAttribute.offset = offsetof(Vertex, color);
 
+    //UV stored at location 3
+    vk::VertexInputAttributeDescription uvAttribute = {};
+    uvAttribute.binding = 0;
+    uvAttribute.location = 3;
+    uvAttribute.format = vk::Format::eR32G32Sfloat;
+    uvAttribute.offset = offsetof(Vertex, uv);
+
     description.attributes.push_back(positionAttribute);
     description.attributes.push_back(normalAttribute);
     description.attributes.push_back(colorAttribute);
+    description.attributes.push_back(uvAttribute);
     return description;
 }
 
@@ -101,10 +109,13 @@ bool Mesh::loadFromObj(const char *filename) {
                     new_vertex.color = new_vertex.normal;
                 }
 
-                //Check if texcoord_index is zero or positive. Negative = no normal data.
+                //Check if texcoord_index is zero or positive. Negative = no uv data.
                 if (idx.texcoord_index >= 0) {
                     tinyobj::real_t tx = attrib.texcoords[2 * idx.texcoord_index + 0];
                     tinyobj::real_t ty = attrib.texcoords[2 * idx.texcoord_index + 1];
+
+                    new_vertex.uv.x = tx;
+                    new_vertex.uv.y = 1 - ty;
                 }
 
                 // Optional: vertex colors

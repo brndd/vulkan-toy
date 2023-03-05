@@ -168,3 +168,25 @@ vkinit::writeDescriptorSet(vk::DescriptorType type, vk::DescriptorSet dstSet, vk
 
     return writeSet;
 }
+
+vk::WriteDescriptorSet vkinit::writeDescriptorSet(vk::DescriptorType type, vk::DescriptorSet dstSet, vk::DescriptorImageInfo* imageInfo, uint32_t binding) {
+    vk::WriteDescriptorSet writeSet = {};
+    writeSet.dstBinding = binding;
+    writeSet.dstSet = dstSet;
+    writeSet.descriptorCount = 1;
+    writeSet.descriptorType = type;
+    writeSet.pImageInfo = imageInfo;
+
+    return writeSet;
+}
+
+vk::SamplerCreateInfo vkinit::samplerCreateInfo(vk::Filter filters, vk::SamplerAddressMode addressMode) {
+    vk::SamplerCreateInfo info = {};
+    info.magFilter = filters;
+    info.minFilter = filters;
+    info.addressModeU = addressMode;
+    info.addressModeV = addressMode;
+    info.addressModeW = addressMode;
+
+    return info;
+}
