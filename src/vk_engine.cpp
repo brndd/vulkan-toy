@@ -44,7 +44,7 @@ static void populateDebugMessageCreateInfo(vk::DebugUtilsMessengerCreateInfoEXT 
 void VulkanEngine::init() {
     //Initialize SDL window
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_WindowFlags window_flags = static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+    SDL_WindowFlags window_flags = static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN );//| SDL_WINDOW_RESIZABLE);
 
     //Create window
     m_sdlWindow = SDL_CreateWindow(
