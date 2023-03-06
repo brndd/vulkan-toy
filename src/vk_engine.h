@@ -167,6 +167,7 @@ private:
     vk::Queue m_presentQueue;
     vk::RenderPass m_renderPass;
     vk::PhysicalDeviceProperties m_gpuProperties;
+    vk::SampleCountFlagBits m_msaaSamples;
 
     FrameData m_frames[FRAMES_IN_FLIGHT];
 
@@ -182,6 +183,12 @@ private:
     AllocatedImage m_depthImage;
     vk::ImageView m_depthImageView;
     vk::Format m_depthFormat;
+
+    //MSAA images
+    AllocatedImage m_colorImage;
+    vk::ImageView m_colorImageView;
+    vk::Format m_colorFormat;
+
 
     vk::PipelineLayout m_meshPipelineLayout;
 

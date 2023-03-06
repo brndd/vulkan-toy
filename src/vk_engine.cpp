@@ -445,50 +445,48 @@ void VulkanEngine::createLogicalDevice() {
     //
     // Create logical device (vk::Device)
     //
-    {
-        //Specify queues
-        auto indices = findQueueFamilies(m_activeGPU);
+    //Specify queues
+    auto indices = findQueueFamilies(m_activeGPU);
 
-        std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
-        std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+    std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
+    std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
-        float queuePriority = 1.0f; //FIXME: this seems dodgy
-        for (uint32_t queueFamily: uniqueQueueFamilies) {
-            vk::DeviceQueueCreateInfo info = {};
-            info.queueFamilyIndex = queueFamily;
-            info.queueCount = 1;
-            info.pQueuePriorities = &queuePriority;
-            queueCreateInfos.push_back(info);
-        }
-
-        //Specify used device features
-        vk::PhysicalDeviceFeatures2 deviceFeatures = {};
-        deviceFeatures.features.geometryShader = VK_TRUE;
-        vk::PhysicalDeviceVulkan11Features vk11Features = {};
-        deviceFeatures.pNext = &vk11Features;
-        vk11Features.shaderDrawParameters = VK_TRUE;
-
-        //Actually create the logical device
-        vk::DeviceCreateInfo createInfo = {};
-        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-        createInfo.pQueueCreateInfos = queueCreateInfos.data();
-        createInfo.pNext = &deviceFeatures;
-
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-        createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-        if (enableValidationLayers) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-            createInfo.ppEnabledLayerNames = validationLayers.data();
-        } else {
-            createInfo.enabledLayerCount = 0;
-        }
-
-        m_vkDevice = m_activeGPU.createDevice(createInfo);
-        m_graphicsQueue = m_vkDevice.getQueue(indices.graphicsFamily.value(), 0);
-        m_presentQueue = m_vkDevice.getQueue(indices.presentFamily.value(), 0);
-
-        std::cout << "Created logical device " << m_vkDevice << "." << std::endl;
+    float queuePriority = 1.0f; //FIXME: this seems dodgy
+    for (uint32_t queueFamily: uniqueQueueFamilies) {
+        vk::DeviceQueueCreateInfo info = {};
+        info.queueFamilyIndex = queueFamily;
+        info.queueCount = 1;
+        info.pQueuePriorities = &queuePriority;
+        queueCreateInfos.push_back(info);
     }
+
+    //Specify used device features
+    vk::PhysicalDeviceFeatures2 deviceFeatures = {};
+    deviceFeatures.features.geometryShader = VK_TRUE;
+    vk::PhysicalDeviceVulkan11Features vk11Features = {};
+    deviceFeatures.pNext = &vk11Features;
+    vk11Features.shaderDrawParameters = VK_TRUE;
+
+    //Actually create the logical device
+    vk::DeviceCreateInfo createInfo = {};
+    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+    createInfo.pQueueCreateInfos = queueCreateInfos.data();
+    createInfo.pNext = &deviceFeatures;
+
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+    createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    if (enableValidationLayers) {
+        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        createInfo.ppEnabledLayerNames = validationLayers.data();
+    } else {
+        createInfo.enabledLayerCount = 0;
+    }
+
+    m_vkDevice = m_activeGPU.createDevice(createInfo);
+    m_graphicsQueue = m_vkDevice.getQueue(indices.graphicsFamily.value(), 0);
+    m_presentQueue = m_vkDevice.getQueue(indices.presentFamily.value(), 0);
+
+    std::cout << "Created logical device " << m_vkDevice << "." << std::endl;
 }
 
 void VulkanEngine::createSwapChain() {
@@ -581,22 +579,50 @@ void VulkanEngine::createSwapChain() {
     //
     // Create depth buffers
     //
-    vk::Extent3D depthImageExtent = {m_swapChainExtent.width, m_swapChainExtent.height, 1};
-    m_depthFormat = vk::Format::eD32Sfloat;
+    {
+        vk::Extent3D depthImageExtent = {m_swapChainExtent.width, m_swapChainExtent.height, 1};
+        m_depthFormat = vk::Format::eD32Sfloat;
 
-    vk::ImageCreateInfo depthImgInfo = vkinit::imageCreateInfo(m_depthFormat, vk::ImageUsageFlagBits::eDepthStencilAttachment, depthImageExtent);
-    //We want the depth image in GPU local memory
-    vma::AllocationCreateInfo depthAllocInfo = {};
-    depthAllocInfo.usage = vma::MemoryUsage::eGpuOnly;
-    depthAllocInfo.requiredFlags = vk::MemoryPropertyFlags(vk::MemoryPropertyFlagBits::eDeviceLocal);
+        vk::ImageCreateInfo depthImgInfo = vkinit::imageCreateInfo(m_depthFormat,
+                                                                   vk::ImageUsageFlagBits::eDepthStencilAttachment,
+                                                                   depthImageExtent, m_msaaSamples);
+        //We want the depth image in GPU local memory
+        vma::AllocationCreateInfo depthAllocInfo = {};
+        depthAllocInfo.usage = vma::MemoryUsage::eGpuOnly;
+        depthAllocInfo.requiredFlags = vk::MemoryPropertyFlags(vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-    //Allocate and create the depth buffer image
-    auto imagePair = m_allocator.createImage(depthImgInfo, depthAllocInfo);
-    m_depthImage.image = imagePair.first;
-    m_depthImage.allocation = imagePair.second;
+        //Allocate and create the depth buffer image
+        auto imagePair = m_allocator.createImage(depthImgInfo, depthAllocInfo);
+        m_depthImage.image = imagePair.first;
+        m_depthImage.allocation = imagePair.second;
 
-    vk::ImageViewCreateInfo depthViewInfo = vkinit::imageViewCreateInfo(m_depthFormat, m_depthImage.image, vk::ImageAspectFlagBits::eDepth);
-    m_depthImageView = m_vkDevice.createImageView(depthViewInfo);
+        vk::ImageViewCreateInfo depthViewInfo = vkinit::imageViewCreateInfo(m_depthFormat, m_depthImage.image,
+                                                                            vk::ImageAspectFlagBits::eDepth);
+        m_depthImageView = m_vkDevice.createImageView(depthViewInfo);
+    }
+
+    //
+    // Create color resources for MSAA
+    //
+    {
+        m_colorFormat = m_swapChainImageFormat;
+        vk::Extent3D colorImageExtent = {m_swapChainExtent.width, m_swapChainExtent.height, 1};
+        vk::ImageCreateInfo colorImgInfo = vkinit::imageCreateInfo(m_swapChainImageFormat,
+                                                                   vk::ImageUsageFlagBits::eTransientAttachment |
+                                                                   vk::ImageUsageFlagBits::eColorAttachment,
+                                                                   colorImageExtent, m_msaaSamples);
+
+        vma::AllocationCreateInfo colorAllocInfo = {};
+        colorAllocInfo.usage = vma::MemoryUsage::eGpuOnly;
+        colorAllocInfo.requiredFlags = vk::MemoryPropertyFlags(vk::MemoryPropertyFlagBits::eDeviceLocal);
+
+        auto imagePair = m_allocator.createImage(colorImgInfo, colorAllocInfo);
+        m_colorImage.image = imagePair.first;
+        m_colorImage.allocation = imagePair.second;
+
+        vk::ImageViewCreateInfo colorViewInfo = vkinit::imageViewCreateInfo(m_colorFormat, m_colorImage.image, vk::ImageAspectFlagBits::eColor);
+        m_colorImageView = m_vkDevice.createImageView(colorViewInfo);
+    }
 }
 
 void VulkanEngine::createCommandPoolAndBuffers() {
@@ -643,9 +669,8 @@ void VulkanEngine::createDefaultRenderPass() {
     //UNDEFINED -> RenderPass Begins -> Subpass 0 begins (Transition to Attachment Optimal) -> Subpass 0 renders -> Subpass 0 ends -> Renderpass Ends (Transitions to Present Source)
 
     vk::AttachmentDescription colorAttachment = {};
-    colorAttachment.format = m_swapChainImageFormat;
-    //Only 1 sample as we won't be doing MSAA (yet)
-    colorAttachment.samples = vk::SampleCountFlagBits::e1;
+    colorAttachment.format = m_colorFormat;
+    colorAttachment.samples = m_msaaSamples;
     //Clear when attachment is loaded
     colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
     //Store when render pass ends
@@ -657,8 +682,8 @@ void VulkanEngine::createDefaultRenderPass() {
     //Don't know or care about the starting layout
     colorAttachment.initialLayout = vk::ImageLayout::eUndefined;
 
-    //After the render pass is through, the image has to be presentable to the screen
-    colorAttachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+    //After the render pass is through, the image is in color attachment format, that needs to be converted to presentation format
+    colorAttachment.finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
 
     vk::AttachmentReference colorAttachmentRef = {};
     //This will index into the pAttachments array in the parent render pass
@@ -668,7 +693,7 @@ void VulkanEngine::createDefaultRenderPass() {
     //Create depth buffer attachment
     vk::AttachmentDescription depthAttachment = {};
     depthAttachment.format = m_depthFormat;
-    depthAttachment.samples = vk::SampleCountFlagBits::e1;
+    depthAttachment.samples = m_msaaSamples;
     depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
     depthAttachment.storeOp = vk::AttachmentStoreOp::eStore;
     depthAttachment.stencilLoadOp = vk::AttachmentLoadOp::eClear;
@@ -679,6 +704,22 @@ void VulkanEngine::createDefaultRenderPass() {
     vk::AttachmentReference depthAttachmentRef = {};
     depthAttachmentRef.attachment = 1;
     depthAttachmentRef.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+
+
+    //Resolve the color attachment (for MSAA)
+    vk::AttachmentDescription colorAttachmentResolve = {};
+    colorAttachmentResolve.format = m_swapChainImageFormat;
+    colorAttachmentResolve.samples = vk::SampleCountFlagBits::e1; //presentable images must only have 1 sample
+    colorAttachmentResolve.loadOp = vk::AttachmentLoadOp::eDontCare;
+    colorAttachmentResolve.storeOp = vk::AttachmentStoreOp::eStore;
+    colorAttachmentResolve.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+    colorAttachmentResolve.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+    colorAttachmentResolve.initialLayout = vk::ImageLayout::eUndefined;
+    colorAttachmentResolve.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+
+    vk::AttachmentReference colorAttachmentResolveRef = {};
+    colorAttachmentResolveRef.attachment = 2;
+    colorAttachmentResolveRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
     //Create 1 subpass (the minimum)
     vk::SubpassDependency colorDependency = {};
@@ -704,17 +745,16 @@ void VulkanEngine::createDefaultRenderPass() {
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
     subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    subpass.pResolveAttachments = &colorAttachmentResolveRef;
 
     //Finally, create the actual render pass
     vk::RenderPassCreateInfo createInfo = {};
     vk::SubpassDependency dependencies[2] = {colorDependency, depthDependency};
-    vk::AttachmentDescription attachments[2] = {colorAttachment, depthAttachment};
-    createInfo.attachmentCount = std::size(attachments);
-    createInfo.pAttachments = &attachments[0];
+    vk::AttachmentDescription attachments[3] = {colorAttachment, depthAttachment, colorAttachmentResolve};
+    createInfo.setAttachments(attachments);
     createInfo.subpassCount = 1;
     createInfo.pSubpasses = &subpass;
-    createInfo.dependencyCount = std::size(dependencies);
-    createInfo.pDependencies = &dependencies[0];
+    createInfo.setDependencies(dependencies);
 
     m_renderPass = m_vkDevice.createRenderPass(createInfo);
     m_mainDeletionQueue.pushFunction([=]() {
@@ -726,17 +766,14 @@ void VulkanEngine::createFramebuffers() {
     vk::FramebufferCreateInfo fbInfo = {};
     fbInfo.pNext = nullptr;
     fbInfo.renderPass = m_renderPass;
-    fbInfo.attachmentCount = 2;
     fbInfo.width = m_swapChainExtent.width;
     fbInfo.height = m_swapChainExtent.height;
     fbInfo.layers = 1;
 
     //Create a framebuffer for each swap chain image view
     for (const auto & view : m_swapChainImageViews) {
-        vk::ImageView attachments[2];
-        attachments[0] = view;
-        attachments[1] = m_depthImageView;
-        fbInfo.pAttachments = attachments;
+        vk::ImageView attachments[3] = {m_colorImageView, m_depthImageView, view};
+        fbInfo.setAttachments(attachments);
         auto buf = m_vkDevice.createFramebuffer(fbInfo);
         m_swapChainFramebuffers.push_back(buf);
     }
@@ -905,6 +942,16 @@ void VulkanEngine::initVulkan() {
     createSurface();
     createDebugMessenger();
     selectPhysicalDevice();
+
+    //Pick max usable MSAA sample count
+    auto properties = m_activeGPU.getProperties();
+    vk::SampleCountFlags counts = properties.limits.framebufferColorSampleCounts & properties.limits.framebufferDepthSampleCounts;
+    if (counts & vk::SampleCountFlagBits::e16) { m_msaaSamples = vk::SampleCountFlagBits::e16; }
+    else if (counts & vk::SampleCountFlagBits::e8) { m_msaaSamples = vk::SampleCountFlagBits::e8; }
+    else if (counts & vk::SampleCountFlagBits::e4) { m_msaaSamples = vk::SampleCountFlagBits::e4; }
+    else if (counts & vk::SampleCountFlagBits::e2) { m_msaaSamples = vk::SampleCountFlagBits::e2; }
+    else { m_msaaSamples = vk::SampleCountFlagBits::e1; }
+
     createLogicalDevice();
 
     //Initialize memory allocator
@@ -1196,7 +1243,7 @@ void VulkanEngine::createPipelines() {
     pipelineBuilder.m_rasterizerInfo = vkinit::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill);
 
     //no multisampling (for now)
-    pipelineBuilder.m_multisampleInfo = vkinit::multisampleStateCreateInfo();
+    pipelineBuilder.m_multisampleInfo = vkinit::multisampleStateCreateInfo(m_msaaSamples);
 
     //a single blend attachment with no blending, writing to RGBA
     pipelineBuilder.m_colorBlendAttachmentState = vkinit::pipelineColorBlendAttachmentState();
@@ -1343,6 +1390,9 @@ void VulkanEngine::recreateSwapChain() {
 }
 
 void VulkanEngine::cleanupSwapChain() {
+    m_vkDevice.destroyImageView(m_colorImageView);
+    m_allocator.destroyImage(m_colorImage.image, m_colorImage.allocation);
+
     m_vkDevice.destroyImageView(m_depthImageView);
     m_allocator.destroyImage(m_depthImage.image, m_depthImage.allocation);
 

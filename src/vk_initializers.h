@@ -21,13 +21,13 @@ namespace vkinit {
 
     vk::PipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo(vk::PolygonMode polygonMode);
 
-    vk::PipelineMultisampleStateCreateInfo multisampleStateCreateInfo();
+    vk::PipelineMultisampleStateCreateInfo multisampleStateCreateInfo(vk::SampleCountFlagBits msaaSamples);
 
     vk::PipelineColorBlendAttachmentState pipelineColorBlendAttachmentState();
 
     vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo();
 
-    vk::ImageCreateInfo imageCreateInfo(vk::Format format, vk::ImageUsageFlags usageFlags, vk::Extent3D extent);
+    vk::ImageCreateInfo imageCreateInfo(vk::Format format, vk::ImageUsageFlags usageFlags, vk::Extent3D extent, vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e1);
 
     vk::ImageViewCreateInfo imageViewCreateInfo(vk::Format format, vk::Image image, vk::ImageAspectFlags aspectFlags);
 

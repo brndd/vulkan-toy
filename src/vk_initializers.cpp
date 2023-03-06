@@ -64,11 +64,11 @@ vk::PipelineRasterizationStateCreateInfo vkinit::pipelineRasterizationStateCreat
 }
 
 //We don't use MSAA for now
-vk::PipelineMultisampleStateCreateInfo vkinit::multisampleStateCreateInfo() {
+vk::PipelineMultisampleStateCreateInfo vkinit::multisampleStateCreateInfo(vk::SampleCountFlagBits msaaSamples) {
     vk::PipelineMultisampleStateCreateInfo info = {};
 
     info.sampleShadingEnable = VK_FALSE;
-    info.rasterizationSamples = vk::SampleCountFlagBits::e1;
+    info.rasterizationSamples = msaaSamples;
     info.minSampleShading = 1.0f;
     info.alphaToCoverageEnable = VK_FALSE;
     info.alphaToOneEnable = VK_FALSE;
@@ -103,14 +103,14 @@ vk::PipelineLayoutCreateInfo vkinit::pipelineLayoutCreateInfo() {
     return info;
 }
 
-vk::ImageCreateInfo vkinit::imageCreateInfo(vk::Format format, vk::ImageUsageFlags usageFlags, vk::Extent3D extent) {
+vk::ImageCreateInfo vkinit::imageCreateInfo(vk::Format format, vk::ImageUsageFlags usageFlags, vk::Extent3D extent, vk::SampleCountFlagBits msaaSamples) {
     vk::ImageCreateInfo info = {};
     info.imageType = vk::ImageType::e2D;
     info.format = format;
     info.extent = extent;
     info.mipLevels = 1;
     info.arrayLayers = 1;
-    info.samples = vk::SampleCountFlagBits::e1;
+    info.samples = msaaSamples;
     info.tiling = vk::ImageTiling::eOptimal;
     info.usage = usageFlags;
 
