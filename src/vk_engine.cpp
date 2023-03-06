@@ -85,6 +85,7 @@ void VulkanEngine::cleanup() {
         m_vkDevice.waitIdle();
 
         //Destroy all objects in the deletion queues
+        m_sceneDeletionQueue.flush();
         m_pipelineDeletionQueue.flush();
         m_mainDeletionQueue.flush();
 
@@ -952,24 +953,24 @@ void VulkanEngine::initScene() {
 
     //Create a sampler to hold the texture for the texturedmesh material
     vk::SamplerCreateInfo samplerInfo = vkinit::samplerCreateInfo(vk::Filter::eNearest); //nearest neighbour for that minecraft look
-    vk::Sampler blockySampler = m_vkDevice.createSampler(samplerInfo);
-    m_mainDeletionQueue.pushFunction([=]() {
-        m_vkDevice.destroySampler(blockySampler);
+    m_nearestSampler = m_vkDevice.createSampler(samplerInfo);
+    m_sceneDeletionQueue.pushFunction([=]() {
+        m_vkDevice.destroySampler(m_nearestSampler);
     });
 
     //Allocate the descriptor set for single-use texture on the material
     vk::DescriptorSetAllocateInfo allocInfo = {};
     allocInfo.descriptorPool = m_descriptorPool;
     allocInfo.setSetLayouts(m_singleTextureDescriptorSetLayout);
-    auto textureSet = m_vkDevice.allocateDescriptorSets(allocInfo)[0];
-    mine.material->textureSet = textureSet;
+    m_textureDescriptorSet = m_vkDevice.allocateDescriptorSets(allocInfo)[0];
+    mine.material->textureSet = m_textureDescriptorSet;
 
     //Point the descriptor set to the texture (called "empire_diffuse")
     vk::DescriptorImageInfo imgInfo = {};
-    imgInfo.sampler = blockySampler;
+    imgInfo.sampler = m_nearestSampler;
     imgInfo.imageView = m_textures["empire_diffuse"].imageView;
     imgInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-    vk::WriteDescriptorSet tex1 = vkinit::writeDescriptorSet(vk::DescriptorType::eCombinedImageSampler, textureSet, &imgInfo, 0);
+    vk::WriteDescriptorSet tex1 = vkinit::writeDescriptorSet(vk::DescriptorType::eCombinedImageSampler, m_textureDescriptorSet, &imgInfo, 0);
     m_vkDevice.updateDescriptorSets(tex1, nullptr);
 }
 
@@ -1161,7 +1162,7 @@ vk::ShaderModule VulkanEngine::loadShaderModule(const char *filePath) {
 }
 
 //TODO: use vk::PipelineCache to speed up rebuilding these
-//TODO: actually just refactor this whole function, jfc
+//TODO: actually just refactor this whole function, JFC.
 void VulkanEngine::createPipelines() {
     //Default placeholder shader
     vk::ShaderModule defaultLitFragShader = loadShaderModule("shaders/default_lit.frag.spv");

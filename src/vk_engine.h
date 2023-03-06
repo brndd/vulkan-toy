@@ -151,6 +151,8 @@ private:
     bool m_framebufferResized = false;
     DeletionQueue m_mainDeletionQueue;
     DeletionQueue m_pipelineDeletionQueue;
+    DeletionQueue m_sceneDeletionQueue;
+
     vma::Allocator m_allocator;
     UploadContext m_uploadContext; //context for uploading data (meshes, textures) to GPU memory
 
@@ -203,6 +205,9 @@ private:
     vk::DescriptorSetLayout m_globalDescriptorSetLayout;
     vk::DescriptorSetLayout m_objectDescriptorSetLayout;
     vk::DescriptorSetLayout m_singleTextureDescriptorSetLayout;
+    vk::DescriptorSet m_textureDescriptorSet;
+
+    vk::Sampler m_nearestSampler;
 
     //
     // Private methods
