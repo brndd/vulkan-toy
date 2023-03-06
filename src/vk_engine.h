@@ -157,7 +157,7 @@ private:
     UploadContext m_uploadContext; //context for uploading data (meshes, textures) to GPU memory
 
     // Vulkan members and handles
-    vk::Extent2D m_windowExtent{640, 480};
+    vk::Extent2D m_windowExtent{1024, 768};
     vk::Instance m_instance;
     vk::DebugUtilsMessengerEXT m_debugMessenger;
     vk::PhysicalDevice m_activeGPU;
