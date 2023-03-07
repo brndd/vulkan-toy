@@ -249,7 +249,7 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
     auto curFrame = getCurrentFrame();
 
     //Fill the camera data struct...
-    GPUCameraData camData;
+    GPUCameraData camData = {};
     camData.view = view;
     camData.projection = projection;
     camData.viewProjection = projection * view;
