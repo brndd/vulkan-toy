@@ -7,6 +7,9 @@ layout (location=3) in vec3 vTexCoord;
 
 layout (location=0) out vec3 outColor;
 layout (location=1) out vec3 texCoord;
+layout (location=2) out vec3 fragPos;
+layout (location=3) out vec3 normal;
+layout (location=4) out vec3 viewPos;
 
 layout(push_constant) uniform constants
 {
@@ -35,4 +38,7 @@ void main() {
     gl_Position = transformMatrix * vec4(vPosition, 1.0f);
     outColor = vColor;
     texCoord = vTexCoord;
+    fragPos = (modelMatrix * vec4(vPosition, 1.0f)).xyz;
+    normal = mat3(transpose(inverse(modelMatrix))) * vNormal;
+    viewPos = cameraData.view[3].xyz;
 }

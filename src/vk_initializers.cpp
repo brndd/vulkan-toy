@@ -63,7 +63,6 @@ vk::PipelineRasterizationStateCreateInfo vkinit::pipelineRasterizationStateCreat
     return info;
 }
 
-//We don't use MSAA for now
 vk::PipelineMultisampleStateCreateInfo vkinit::multisampleStateCreateInfo(vk::SampleCountFlagBits msaaSamples) {
     vk::PipelineMultisampleStateCreateInfo info = {};
 

@@ -259,9 +259,14 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
     memcpy(data, &camData, sizeof(GPUCameraData));
     m_allocator.unmapMemory(curFrame.cameraBuffer.allocation);
 
-    //Change global illumination tint over time
-    float uTime = m_simulationTime;
-    m_sceneParameters.ambientColor = {sin(uTime), 0, cos(uTime), 1};
+    //
+    //Lights etc.
+    //
+    m_sceneParameters.ambientColor = {0.05f, 0.05f, 0.05f, 1.0f};
+
+    //Sunlight data
+    m_sceneParameters.sunlightColor = {0.3f, 0.2f, 0.1f, 32.0f};
+    m_sceneParameters.sunlightDirection = {0.5f, 1.0f, 0.0f, 1.0f};
 
     //Copy scene parameters into GPU memory
     char * sceneData = static_cast<char *>(m_allocator.mapMemory(m_sceneParameterBuffer.allocation));
@@ -270,6 +275,17 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
     sceneData += uniformOffset;
     memcpy(sceneData, &m_sceneParameters, sizeof(GPUSceneData));
     m_allocator.unmapMemory(m_sceneParameterBuffer.allocation);
+
+    //Create point lights and copy them into GPU memory
+    float uTime = m_simulationTime;
+    float posMod = (sin(uTime) + 1.0f) / 2.0f * 10.0f;
+    std::array<PointLightData, 3> pointLights = {};
+    pointLights[0] = {{-3.0f - posMod/2, 3.0f, -0.0f - posMod, 32.0f}, {10.0f, 0.0f, 0.0f, 32.0f}};
+    pointLights[1] = {{-2.0f, 3.0f, -0.0f - posMod, 32.0f}, {0.0f, 10.0f, 0.0f, 32.0f}};
+    pointLights[2] = {{-1.0f + posMod/2, 3.0f, -0.0f - posMod, 32.0f}, {0.0f, 0.0f, 10.0f, 32.0f}};
+    PointLightData* pointLightSSBO = static_cast<PointLightData *>(m_allocator.mapMemory(curFrame.lightBuffer.allocation));
+    std::copy(pointLights.begin(), pointLights.end(), pointLightSSBO);
+    m_allocator.unmapMemory(curFrame.lightBuffer.allocation);
 
     //Copy object matrices into storage buffer
     GPUObjectData* objectSSBO = static_cast<GPUObjectData *>(m_allocator.mapMemory(curFrame.objectBuffer.allocation)); //unmapped after the object loop
@@ -817,10 +833,10 @@ void VulkanEngine::createDescriptors() {
     //Bind scene parameters at 1
     vk::DescriptorSetLayoutBinding sceneBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eVertex, 1);
 
-    vk::DescriptorSetLayoutBinding bindings[] = {camBinding, sceneBinding};
+    vk::DescriptorSetLayoutBinding bindings0[] = {camBinding, sceneBinding};
 
     vk::DescriptorSetLayoutCreateInfo set0Info = {};
-    set0Info.setBindings(bindings);
+    set0Info.setBindings(bindings0);
 
     m_globalDescriptorSetLayout = m_vkDevice.createDescriptorSetLayout(set0Info);
     m_mainDeletionQueue.pushFunction([=] () {
@@ -830,14 +846,20 @@ void VulkanEngine::createDescriptors() {
     //
     // Descriptor set layout 1
     //
+    //Bind objects at 0
     vk::DescriptorSetLayoutBinding objBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eVertex, 0);
 
+    //Bind lights at 1
+    vk::DescriptorSetLayoutBinding lightBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eFragment, 1);
+    vk::DescriptorSetLayoutBinding bindings1[] = {objBinding, lightBinding};
     vk::DescriptorSetLayoutCreateInfo set1Info = {};
-    set1Info.setBindings(objBinding);
+    set1Info.setBindings(bindings1);
+
     m_objectDescriptorSetLayout = m_vkDevice.createDescriptorSetLayout(set1Info);
     m_mainDeletionQueue.pushFunction([=] () {
         m_vkDevice.destroyDescriptorSetLayout(m_objectDescriptorSetLayout);
     });
+
 
     //
     // Descriptor set layout 2. We don't allocate it here yet.
@@ -884,9 +906,13 @@ void VulkanEngine::createDescriptors() {
 
         frame.cameraBuffer = createBuffer(sizeof(GPUCameraData), vk::BufferUsageFlagBits::eUniformBuffer, vma::MemoryUsage::eCpuToGpu);
 
+        const int MAX_LIGHTS = 10;
+        frame.lightBuffer = createBuffer(sizeof(PointLightData) * MAX_LIGHTS, vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eCpuToGpu);
+
         m_mainDeletionQueue.pushFunction([=] () {
             destroyBuffer(frame.objectBuffer);
             destroyBuffer(frame.cameraBuffer);
+            destroyBuffer(frame.lightBuffer);
         });
 
         //Allocate one descriptor set for each frame
@@ -923,11 +949,17 @@ void VulkanEngine::createDescriptors() {
         objectInfo.offset = 0;
         objectInfo.range = sizeof(GPUObjectData) * MAX_OBJECTS;
 
+        //Point the light descriptor to the light buffer
+        vk::DescriptorBufferInfo lightInfo = {};
+        lightInfo.buffer = frame.lightBuffer.buffer;
+        lightInfo.offset = 0;
+        lightInfo.range = sizeof(PointLightData) * MAX_LIGHTS;
 
         vk::WriteDescriptorSet cameraWrite = vkinit::writeDescriptorSet(vk::DescriptorType::eUniformBuffer, frame.globalDescriptor, &cameraInfo, 0);
         vk::WriteDescriptorSet sceneWrite = vkinit::writeDescriptorSet(vk::DescriptorType::eUniformBufferDynamic, frame.globalDescriptor, &sceneInfo, 1);
         vk::WriteDescriptorSet objectWrite = vkinit::writeDescriptorSet(vk::DescriptorType::eStorageBuffer, frame.objectDescriptor, &objectInfo, 0);
-        vk::WriteDescriptorSet setWrite[] = {cameraWrite, sceneWrite, objectWrite};
+        vk::WriteDescriptorSet lightWrite = vkinit::writeDescriptorSet(vk::DescriptorType::eStorageBuffer, frame.objectDescriptor, &lightInfo, 1);
+        vk::WriteDescriptorSet setWrite[] = {cameraWrite, sceneWrite, objectWrite, lightWrite};
 
         m_vkDevice.updateDescriptorSets(setWrite, nullptr);
     }
@@ -951,6 +983,7 @@ void VulkanEngine::initVulkan() {
     else if (counts & vk::SampleCountFlagBits::e4) { m_msaaSamples = vk::SampleCountFlagBits::e4; }
     else if (counts & vk::SampleCountFlagBits::e2) { m_msaaSamples = vk::SampleCountFlagBits::e2; }
     else { m_msaaSamples = vk::SampleCountFlagBits::e1; }
+    std::cout << "Using " << to_string(m_msaaSamples) << "x MSAA" << std::endl;
 
     createLogicalDevice();
 

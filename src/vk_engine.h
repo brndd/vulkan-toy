@@ -55,6 +55,7 @@ struct FrameData {
 
     AllocatedBuffer cameraBuffer;
     AllocatedBuffer objectBuffer;
+    AllocatedBuffer lightBuffer;
 
     vk::DescriptorSet globalDescriptor;
     vk::DescriptorSet objectDescriptor;
@@ -95,11 +96,16 @@ struct GPUSceneData {
     glm::vec4 fogDistances; //zw unused
     glm::vec4 ambientColor;
     glm::vec4 sunlightDirection; //w is intensity
-    glm::vec4 sunlightColor;
+    glm::vec4 sunlightColor; //w is shininess
 };
 
 struct GPUObjectData {
     glm::mat4 modelMatrix;
+};
+
+struct PointLightData {
+    glm::vec4 worldPosition;
+    glm::vec4 lightColor; //w is shininess
 };
 
 struct Texture {
