@@ -201,7 +201,8 @@ void VulkanEngine::draw() {
     //
     cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 
-    drawObjects(cmd, m_renderables.data(), m_renderables.size());
+    //drawObjects(cmd, m_renderables.data(), m_renderables.size());
+    drawObjects(cmd, &m_mine, 1);
 
     //Finalize the render pass
     cmd.endRenderPass();
@@ -247,6 +248,19 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
     projection[1][1] *= -1;
 
     auto curFrame = getCurrentFrame();
+    float uTime = m_simulationTime;
+
+    //Create a temporary object to render
+    RenderObject mine = {};
+    mine.mesh = getMesh("mine");
+    mine.material = getMaterial("texturedmesh");
+    mine.transformMatrix = glm::translate(glm::vec3{5, -10, 0});
+    //Rotate the mine as a function of time
+    //float radians = (sin(uTime) + 1.0f) / 2.0f * 3.141592f;
+    float radians = glm::mod(uTime, 3.141592f * 2.0f);
+    mine.transformMatrix = glm::rotate(mine.transformMatrix, radians, glm::vec3(0.0f, 1.0f, 0.0f));
+
+    first = &mine; //TODO: remove this once things are no longer awful
 
     //Fill the camera data struct...
     GPUCameraData camData = {};
@@ -277,7 +291,6 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
     m_allocator.unmapMemory(m_sceneParameterBuffer.allocation);
 
     //Create point lights and copy them into GPU memory
-    float uTime = m_simulationTime;
     float posMod = (sin(uTime) + 1.0f) / 2.0f * 10.0f;
     std::array<PointLightData, 3> pointLights = {};
     pointLights[0] = {{-3.0f - posMod/2, 3.0f, -0.0f - posMod, 32.0f}, {10.0f, 0.0f, 0.0f, 32.0f}};
@@ -1004,32 +1017,33 @@ void VulkanEngine::initVulkan() {
 }
 
 void VulkanEngine::initScene() {
-    RenderObject monkey;
-    monkey.mesh = getMesh("monkey");
-    monkey.material = getMaterial("defaultmesh");
-    monkey.transformMatrix = glm::mat4{1.0f};
-    m_renderables.push_back(monkey);
-
-    for (int i = -20; i <= 20; i++) {
-        for (int j = -20; j <= 20; j++) {
-            RenderObject rect;
-            rect.mesh = getMesh("rectangle");
-            rect.material = getMaterial("defaultmesh");
-            glm::mat4 translation = glm::translate(glm::mat4{1.0}, glm::vec3{i, 0, j});
-            glm::mat4 scale = glm::scale(glm::mat4{1.0}, glm::vec3(0.2, 0.2, 0.2));
-            rect.transformMatrix = translation * scale;
-            m_renderables.push_back(rect);
-        }
-    }
+//    RenderObject monkey;
+//    monkey.mesh = getMesh("monkey");
+//    monkey.material = getMaterial("defaultmesh");
+//    monkey.transformMatrix = glm::mat4{1.0f};
+//    m_renderables.push_back(monkey);
+//
+//    for (int i = -20; i <= 20; i++) {
+//        for (int j = -20; j <= 20; j++) {
+//            RenderObject rect;
+//            rect.mesh = getMesh("rectangle");
+//            rect.material = getMaterial("defaultmesh");
+//            glm::mat4 translation = glm::translate(glm::mat4{1.0}, glm::vec3{i, 0, j});
+//            glm::mat4 scale = glm::scale(glm::mat4{1.0}, glm::vec3(0.2, 0.2, 0.2));
+//            rect.transformMatrix = translation * scale;
+//            m_renderables.push_back(rect);
+//        }
+//    }
 
     //
     // Minecraft level
     //
-    RenderObject mine;
+    RenderObject mine = {};
     mine.mesh = getMesh("mine");
     mine.material = getMaterial("texturedmesh");
     mine.transformMatrix = glm::translate(glm::vec3{5, -10, 0});
-    m_renderables.push_back(mine);
+    m_mine = mine;
+    //m_renderables.push_back(mine);
 
     //Create a sampler to hold the texture for the texturedmesh material
     vk::SamplerCreateInfo samplerInfo = vkinit::samplerCreateInfo(vk::Filter::eNearest); //nearest neighbour for that minecraft look

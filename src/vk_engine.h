@@ -202,6 +202,7 @@ private:
 
     //Vector of objects in the scene
     std::vector<RenderObject> m_renderables;
+    RenderObject m_mine;
     //Materials, indexed by material name
     //TODO: these should not be stringly typed
     std::unordered_map<std::string, Material> m_materials;
