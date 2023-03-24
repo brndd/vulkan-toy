@@ -66,7 +66,7 @@ void main() {
         vec3 pointPos = light.lightPosition.xyz;
         vec3 pointDir = normalize(pointPos - fragPos);
         float pointDist = distance(fragPos, pointPos);
-        vec4 pointColor = vec4(light.lightColor.xyz * (1/pow(pointDist, 2)), light.lightColor.w);
+        vec4 pointColor = vec4(light.lightColor.xyz * (1/pow(pointDist, 2.0f)), light.lightColor.w);
         float pointCos = dot(pointDir, normal);
         vec3 pointDiffuse = max(0.0, pointCos) * pointColor.xyz;
         vec3 pointSpecular = blinnPhong(pointDir, normal, pointColor);
