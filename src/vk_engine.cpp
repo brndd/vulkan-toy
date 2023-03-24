@@ -44,7 +44,7 @@ static void populateDebugMessageCreateInfo(vk::DebugUtilsMessengerCreateInfoEXT 
 void VulkanEngine::init() {
     //Initialize SDL window
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_WindowFlags window_flags = static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN );//| SDL_WINDOW_RESIZABLE);
+    SDL_WindowFlags window_flags = static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
     //Create window
     m_sdlWindow = SDL_CreateWindow(
@@ -231,7 +231,7 @@ void VulkanEngine::draw() {
     if (presentResult == vk::Result::eErrorOutOfDateKHR || presentResult == vk::Result::eSuboptimalKHR || m_framebufferResized) {
         m_framebufferResized = false;
         recreateSwapChain();
-        recreatePipelines();
+        //recreatePipelines();
     }
     else if (presentResult != vk::Result::eSuccess) {
         vk::throwResultException(nextImageResult, "Failed to present swap chain image.");
@@ -324,6 +324,22 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
             if (object.material->textureSet.has_value()) {
                 cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, object.material->pipelineLayout, 2, object.material->textureSet.value(), nullptr);
             }
+
+            //Update viewport and scissor
+            vk::Viewport viewport = {};
+            viewport.x = 0.0f;
+            viewport.y = 0.0f;
+            viewport.width = static_cast<float>(m_swapChainExtent.width);
+            viewport.height = static_cast<float>(m_swapChainExtent.height);
+            viewport.minDepth = 0.0f;
+            viewport.maxDepth = 1.0f;
+
+            cmd.setViewport(0, viewport);
+
+            vk::Rect2D scissor;
+            scissor.offset = vk::Offset2D{0, 0};
+            scissor.extent = m_swapChainExtent;
+            cmd.setScissor(0, scissor);
         }
 
         MeshPushConstants constants;
@@ -1675,6 +1691,12 @@ vk::Pipeline PipelineBuilder::buildPipeline(vk::Device device, vk::RenderPass pa
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineInfo.pDepthStencilState = &m_depthStencil;
+
+    //Dynamic scissor and viewport
+    vk::PipelineDynamicStateCreateInfo dynInfo = {};
+    vk::DynamicState dynamicStates[] = {vk::DynamicState::eViewport, vk::DynamicState::eScissor};
+    dynInfo.setDynamicStates(dynamicStates);
+    pipelineInfo.setPDynamicState(&dynInfo);
 
     auto pipeline = device.createGraphicsPipeline(VK_NULL_HANDLE, pipelineInfo);
     switch (pipeline.result) {
