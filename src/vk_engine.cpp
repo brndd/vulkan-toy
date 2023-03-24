@@ -1535,7 +1535,7 @@ void VulkanEngine::submitImmediateCommand(std::function<void(vk::CommandBuffer)>
     //Submit the command buffer to the queue and execute it.
     //uploadFence will now block until the graphic commands finish execution
     m_graphicsQueue.submit(submitInfo, m_uploadContext.uploadFence);
-    m_vkDevice.waitForFences(m_uploadContext.uploadFence, true, S_TO_NS(5));
+    auto res = m_vkDevice.waitForFences(m_uploadContext.uploadFence, true, S_TO_NS(5)); //FIXME: handle timeout
     m_vkDevice.resetFences(m_uploadContext.uploadFence);
     m_vkDevice.resetCommandPool(m_uploadContext.commandPool);
 }
