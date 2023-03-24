@@ -26,18 +26,6 @@ struct SwapChainSupportDetails {
     std::vector<vk::PresentModeKHR> presentModes;
 };
 
-struct Material {
-    std::optional<vk::DescriptorSet> textureSet;
-    vk::Pipeline pipeline;
-    vk::PipelineLayout pipelineLayout;
-};
-
-struct RenderObject {
-    Mesh * mesh;
-    Material * material;
-    glm::mat4 transformMatrix;
-};
-
 //Holds view matrix, projection matrix and view*projection matrix.
 struct GPUCameraData {
     glm::mat4 view;
@@ -108,10 +96,6 @@ struct PointLightData {
     glm::vec4 lightColor; //w is shininess
 };
 
-struct Texture {
-    AllocatedImage image;
-    vk::ImageView imageView;
-};
 
 class VulkanEngine {
 public:
