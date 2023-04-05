@@ -1,6 +1,11 @@
 #version 460
 
 layout (location=0) in vec3 inColor;
+layout (location=1) in vec2 texCoord;
+layout (location=2) in vec3 fragPos;
+layout (location=3) in vec3 normal;
+layout (location=4) in vec3 viewPos;
+
 layout (location=0) out vec4 outColor;
 
 layout (set=0, binding=1) uniform SceneData{
@@ -12,5 +17,5 @@ layout (set=0, binding=1) uniform SceneData{
 } sceneData;
 
 void main() {
-    outColor = vec4(inColor + sceneData.ambientColor.xyz, 1.0f);
+    outColor = vec4(normal.x, normal.y, 1.0f, 1.0f);
 }
