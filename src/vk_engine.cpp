@@ -172,10 +172,9 @@ void VulkanEngine::draw() {
 
     cmd.begin(cmdBeginInfo);
 
-    //Clear screen to blue
+    //Clear screen to black
     vk::ClearValue clearValue = {};
-    float flash = abs(sin(m_simulationTime));
-    const std::array<float, 4> cols = {0.0f, 0.0f, flash, 1.0f};
+    const std::array<float, 4> cols = {0.0f, 0.0f, 0.0f, 1.0f};
     clearValue.color = {cols};
 
     //Clear depth buffer
