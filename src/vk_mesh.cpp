@@ -1,6 +1,8 @@
 #include "vk_mesh.h"
 #include <tiny_obj_loader.h>
 #include <iostream>
+#include <stb_image.h>
+#include <glm/glm.hpp>
 
 VertexInputDescription Vertex::getVertexDescription() {
     VertexInputDescription description;
@@ -131,5 +133,63 @@ bool Mesh::loadFromObj(const char *filename) {
         }
     }
 
+    return true;
+}
+
+bool Mesh::loadFromHeightmap(const char *filename) {
+    int mapX, mapY, mapN;
+    int bytesPerPixel = 1;
+    unsigned char * pixels = stbi_load(filename, &mapX, &mapY, &mapN, bytesPerPixel);
+    if (!pixels) {
+        return false;
+    }
+
+    //Lambda to sample heightmap at a given coordinate
+    auto h = [&](int x, int y) -> unsigned char {
+        x = std::clamp(x, 0, mapX - 1);
+        y = std::clamp(y, 0, mapY - 1);
+        return *(pixels + (x + y * mapY) * bytesPerPixel);
+    };
+
+    //the first pixel is top left in stb_image
+    for (int i = 0; i < mapX; i++) {
+        for (int j = 0; j < mapY; j++) {
+            Vertex new_vertex;
+            new_vertex.position.x = static_cast<float>(-mapX / 2.0f + i);
+            new_vertex.position.z = static_cast<float>(-mapY / 2.0f + j);
+            new_vertex.position.y = static_cast<float>(h(i, j)) / 255.0f * 10.0f;
+
+            //UV
+            new_vertex.uv.x = static_cast<float>(i) / (mapX - 1);
+            new_vertex.uv.y = static_cast<float>(j) / (mapY - 1);
+
+            //Calculate normals
+            float rh, lh, bh, th;
+            rh = static_cast<float>(h(i + 1, j)) / 255.0f * 10.0f;
+            lh = static_cast<float>(h(i - 1, j)) / 255.0f * 10.0f;
+            bh = static_cast<float>(h(i, j + 1)) / 255.0f * 10.0f;
+            th = static_cast<float>(h(i, j - 1)) / 255.0f * 10.0f;
+            glm::vec3 hor = {1.0f, rh - lh, 0.0f};
+            glm::vec3 ver = {0.0f, bh - th, 1.0f};
+            new_vertex.normal = glm::normalize(glm::cross(ver, hor));
+
+            this->vertices.push_back(new_vertex);
+        }
+    }
+
+    //Populate indices
+    for (int i = 0; i < mapX - 1; i++) {
+        for (int j = 0; j < mapY - 1; j++) {
+            int start = i + j * mapX;
+            indices.push_back(start);
+            indices.push_back(start + 1);
+            indices.push_back(start + mapX);
+            indices.push_back(start + 1);
+            indices.push_back(start + 1 + mapX);
+            indices.push_back(start + mapX);
+        }
+    }
+
+    stbi_image_free(pixels);
     return true;
 }

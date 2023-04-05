@@ -200,8 +200,7 @@ void VulkanEngine::draw() {
     //
     cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 
-    //drawObjects(cmd, m_renderables.data(), m_renderables.size());
-    drawObjects(cmd, &m_mine, 1);
+    drawObjects(cmd, m_renderables.data(), m_renderables.size());
 
     //Finalize the render pass
     cmd.endRenderPass();
@@ -230,7 +229,6 @@ void VulkanEngine::draw() {
     if (presentResult == vk::Result::eErrorOutOfDateKHR || presentResult == vk::Result::eSuboptimalKHR || m_framebufferResized) {
         m_framebufferResized = false;
         recreateSwapChain();
-        //recreatePipelines();
     }
     else if (presentResult != vk::Result::eSuccess) {
         vk::throwResultException(nextImageResult, "Failed to present swap chain image.");
@@ -240,7 +238,7 @@ void VulkanEngine::draw() {
 }
 
 void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int count) {
-    glm::vec3 camPos = {0.0f, -6.0f, -10.0f};
+    glm::vec3 camPos = {0.0f, -10.0f, -60.0f};
     glm::mat4 view = glm::translate(glm::mat4(1.0f), camPos);
     float aspect = static_cast<float>(m_windowExtent.width) / static_cast<float>(m_windowExtent.height);
     glm::mat4 projection = glm::perspective(glm::radians(70.0f), aspect, 0.1f, 200.0f);
@@ -248,18 +246,6 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
 
     auto curFrame = getCurrentFrame();
     float uTime = m_simulationTime;
-
-    //Create a temporary object to render
-    RenderObject mine = {};
-    mine.mesh = getMesh("mine");
-    mine.material = getMaterial("texturedmesh");
-    mine.transformMatrix = glm::translate(glm::vec3{5, -10, 0});
-    //Rotate the mine as a function of time
-    //float radians = (sin(uTime) + 1.0f) / 2.0f * 3.141592f;
-    float radians = glm::mod(uTime, 3.141592f * 2.0f);
-    mine.transformMatrix = glm::rotate(mine.transformMatrix, radians, glm::vec3(0.0f, 1.0f, 0.0f));
-
-    first = &mine; //TODO: remove this once things are no longer awful
 
     //Fill the camera data struct...
     GPUCameraData camData = {};
@@ -290,14 +276,14 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
     m_allocator.unmapMemory(m_sceneParameterBuffer.allocation);
 
     //Create point lights and copy them into GPU memory
-    float posMod = (sin(uTime) + 1.0f) / 2.0f * 10.0f;
-    std::array<PointLightData, 3> pointLights = {};
-    pointLights[0] = {{-3.0f - posMod/2, 3.0f, -0.0f - posMod, 32.0f}, {10.0f, 0.0f, 0.0f, 32.0f}};
-    pointLights[1] = {{-2.0f, 3.0f, -0.0f - posMod, 32.0f}, {0.0f, 10.0f, 0.0f, 32.0f}};
-    pointLights[2] = {{-1.0f + posMod/2, 3.0f, -0.0f - posMod, 32.0f}, {0.0f, 0.0f, 10.0f, 32.0f}};
-    PointLightData* pointLightSSBO = static_cast<PointLightData *>(m_allocator.mapMemory(curFrame.lightBuffer.allocation));
-    std::copy(pointLights.begin(), pointLights.end(), pointLightSSBO);
-    m_allocator.unmapMemory(curFrame.lightBuffer.allocation);
+//    float posMod = (sin(uTime) + 1.0f) / 2.0f * 10.0f;
+//    std::array<PointLightData, 3> pointLights = {};
+//    pointLights[0] = {{-3.0f - posMod/2, 3.0f, -0.0f - posMod, 32.0f}, {10.0f, 0.0f, 0.0f, 32.0f}};
+//    pointLights[1] = {{-2.0f, 3.0f, -0.0f - posMod, 32.0f}, {0.0f, 10.0f, 0.0f, 32.0f}};
+//    pointLights[2] = {{-1.0f + posMod/2, 3.0f, -0.0f - posMod, 32.0f}, {0.0f, 0.0f, 10.0f, 32.0f}};
+//    PointLightData* pointLightSSBO = static_cast<PointLightData *>(m_allocator.mapMemory(curFrame.lightBuffer.allocation));
+//    std::copy(pointLights.begin(), pointLights.end(), pointLightSSBO);
+//    m_allocator.unmapMemory(curFrame.lightBuffer.allocation);
 
     //Copy object matrices into storage buffer
     GPUObjectData* objectSSBO = static_cast<GPUObjectData *>(m_allocator.mapMemory(curFrame.objectBuffer.allocation)); //unmapped after the object loop
@@ -350,10 +336,19 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
         if (object.mesh != lastMesh) {
             vk::DeviceSize offset = 0;
             cmd.bindVertexBuffers(0, 1, &object.mesh->vertexBuffer.buffer, &offset);
+            if (!object.mesh->indices.empty()) {
+                cmd.bindIndexBuffer(object.mesh->indexBuffer.buffer, 0, vk::IndexType::eUint16);
+            }
             lastMesh = object.mesh;
         }
 
-        cmd.draw(object.mesh->vertices.size(), 1, 0, i); //FIXME: we're hackily using the firstInstance parameter here to pass instance index to the shader, and I do not like it.
+        if (object.mesh->indices.empty()) {
+            cmd.draw(object.mesh->vertices.size(), 1, 0,
+                     i); //FIXME: we're hackily using the firstInstance parameter here to pass instance index to the shader, and I do not like it.
+        }
+        else {
+            cmd.drawIndexed(object.mesh->indices.size(), 1, 0, 0, i);
+        }
     }
 
     m_allocator.unmapMemory(curFrame.objectBuffer.allocation);
@@ -1032,55 +1027,51 @@ void VulkanEngine::initVulkan() {
 }
 
 void VulkanEngine::initScene() {
-//    RenderObject monkey;
-//    monkey.mesh = getMesh("monkey");
-//    monkey.material = getMaterial("defaultmesh");
-//    monkey.transformMatrix = glm::mat4{1.0f};
-//    m_renderables.push_back(monkey);
+    RenderObject terrain = {};
+    terrain.mesh = getMesh("heightmap");
+    terrain.material = getMaterial("defaultmesh");
+    terrain.transformMatrix = glm::translate(glm::vec3{0, 0, -5});
+    m_renderables.push_back(terrain);
+
+    RenderObject monkey;
+    monkey.mesh = getMesh("monkey");
+    monkey.material = getMaterial("defaultmesh");
+    //monkey.transformMatrix = glm::mat4{1.0f};
+    monkey.transformMatrix = glm::translate(glm::vec3{0, 10, -5});
+    m_renderables.push_back(monkey);
+
+//    //
+//    // Minecraft level
+//    //
+//    RenderObject mine = {};
+//    mine.mesh = getMesh("mine");
+//    mine.material = getMaterial("texturedmesh");
+//    mine.transformMatrix = glm::translate(glm::vec3{5, -10, 0});
+//    m_mine = mine;
+//    m_renderables.push_back(mine);
 //
-//    for (int i = -20; i <= 20; i++) {
-//        for (int j = -20; j <= 20; j++) {
-//            RenderObject rect;
-//            rect.mesh = getMesh("rectangle");
-//            rect.material = getMaterial("defaultmesh");
-//            glm::mat4 translation = glm::translate(glm::mat4{1.0}, glm::vec3{i, 0, j});
-//            glm::mat4 scale = glm::scale(glm::mat4{1.0}, glm::vec3(0.2, 0.2, 0.2));
-//            rect.transformMatrix = translation * scale;
-//            m_renderables.push_back(rect);
-//        }
-//    }
+//    //Create a sampler to hold the texture for the texturedmesh material
+//    vk::SamplerCreateInfo samplerInfo = vkinit::samplerCreateInfo(vk::Filter::eNearest); //nearest neighbour for that minecraft look
+//    m_nearestSampler = m_vkDevice.createSampler(samplerInfo);
+//    m_sceneDeletionQueue.pushFunction([=]() {
+//        m_vkDevice.destroySampler(m_nearestSampler);
+//    });
+//
+//    //Allocate the descriptor set for single-use texture on the material
+//    vk::DescriptorSetAllocateInfo allocInfo = {};
+//    allocInfo.descriptorPool = m_descriptorPool;
+//    allocInfo.setSetLayouts(m_singleTextureDescriptorSetLayout);
+//    m_textureDescriptorSet = m_vkDevice.allocateDescriptorSets(allocInfo)[0];
+//    mine.material->textureSet = m_textureDescriptorSet;
+//
+//    //Point the descriptor set to the texture (called "empire_diffuse")
+//    vk::DescriptorImageInfo imgInfo = {};
+//    imgInfo.sampler = m_nearestSampler;
+//    imgInfo.imageView = m_textures["empire_diffuse"].imageView;
+//    imgInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+//    vk::WriteDescriptorSet tex1 = vkinit::writeDescriptorSet(vk::DescriptorType::eCombinedImageSampler, m_textureDescriptorSet, &imgInfo, 0);
+//    m_vkDevice.updateDescriptorSets(tex1, nullptr);
 
-    //
-    // Minecraft level
-    //
-    RenderObject mine = {};
-    mine.mesh = getMesh("mine");
-    mine.material = getMaterial("texturedmesh");
-    mine.transformMatrix = glm::translate(glm::vec3{5, -10, 0});
-    m_mine = mine;
-    //m_renderables.push_back(mine);
-
-    //Create a sampler to hold the texture for the texturedmesh material
-    vk::SamplerCreateInfo samplerInfo = vkinit::samplerCreateInfo(vk::Filter::eNearest); //nearest neighbour for that minecraft look
-    m_nearestSampler = m_vkDevice.createSampler(samplerInfo);
-    m_sceneDeletionQueue.pushFunction([=]() {
-        m_vkDevice.destroySampler(m_nearestSampler);
-    });
-
-    //Allocate the descriptor set for single-use texture on the material
-    vk::DescriptorSetAllocateInfo allocInfo = {};
-    allocInfo.descriptorPool = m_descriptorPool;
-    allocInfo.setSetLayouts(m_singleTextureDescriptorSetLayout);
-    m_textureDescriptorSet = m_vkDevice.allocateDescriptorSets(allocInfo)[0];
-    mine.material->textureSet = m_textureDescriptorSet;
-
-    //Point the descriptor set to the texture (called "empire_diffuse")
-    vk::DescriptorImageInfo imgInfo = {};
-    imgInfo.sampler = m_nearestSampler;
-    imgInfo.imageView = m_textures["empire_diffuse"].imageView;
-    imgInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-    vk::WriteDescriptorSet tex1 = vkinit::writeDescriptorSet(vk::DescriptorType::eCombinedImageSampler, m_textureDescriptorSet, &imgInfo, 0);
-    m_vkDevice.updateDescriptorSets(tex1, nullptr);
 }
 
 bool VulkanEngine::checkValidationLayerSupport() {
@@ -1304,7 +1295,7 @@ void VulkanEngine::createPipelines() {
     //Configure the rasterizer to draw filled rectangles
     pipelineBuilder.m_rasterizerInfo = vkinit::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill);
 
-    //no multisampling (for now)
+    //yes multisampling
     pipelineBuilder.m_multisampleInfo = vkinit::multisampleStateCreateInfo(m_msaaSamples);
 
     //a single blend attachment with no blending, writing to RGBA
@@ -1381,33 +1372,23 @@ void VulkanEngine::createPipelines() {
 }
 
 void VulkanEngine::loadMeshes() {
-    //Hardcode a triangle mesh
-    Mesh rect;
-    rect.vertices.resize(4);
-    rect.vertices[0].position = {-0.5f, -0.5f, 0.0f};
-    rect.vertices[1].position = {0.5f, -0.5f, 0.0f};
-    rect.vertices[2].position = {0.5f, 0.5f, 0.0f};
-    rect.vertices[3].position = {-0.5f, 0.5f, 0.0f};
-    rect.vertices[0].color = {1.0f, 0.0f, 1.0f};
-    rect.vertices[1].color = {0.0f, 1.0f, 0.0f};
-    rect.vertices[2].color = {1.0f, 0.0f, 1.0f};
-    rect.vertices[3].color = {0.0f, 1.0f, 0.0f};
-    rect.indices = {0, 1, 2, 2, 3, 0};
-    //Don't need normals (yet)
-    uploadMesh(rect);
-    m_meshes["rectangle"] = rect;
-
     //Monke mesh
     Mesh monke;
     monke.loadFromObj("data/assets/monkey_smooth.obj");
     uploadMesh(monke);
     m_meshes["monkey"] = monke;
+//
+//    //Minecraft mesh
+//    Mesh mine;
+//    mine.loadFromObj("data/assets/lost_empire.obj");
+//    uploadMesh(mine);
+//    m_meshes["mine"] = mine;
 
-    //Minecraft mesh
-    Mesh mine;
-    mine.loadFromObj("data/assets/lost_empire.obj");
-    uploadMesh(mine);
-    m_meshes["mine"] = mine;
+    //Heightmap
+    Mesh heightmap;
+    heightmap.loadFromHeightmap("data/assets/test_heightmap.png");
+    uploadMesh(heightmap);
+    m_meshes["heightmap"] = heightmap;
 
     std::cout << "Loaded meshes." << std::endl;
 }
@@ -1440,6 +1421,28 @@ void VulkanEngine::uploadMesh(Mesh &mesh) {
         destroyBuffer(mesh.vertexBuffer);
     });
     destroyBuffer(stagingBuffer);
+
+    //Do the same for the index buffer
+    if (!mesh.indices.empty()) {
+        const size_t indexBufferSize = mesh.indices.size() * sizeof(uint16_t);
+        AllocatedBuffer indexStagingBuffer = createBuffer(indexBufferSize, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eCpuOnly);
+
+        uint16_t * indexData = static_cast<uint16_t *>(m_allocator.mapMemory(indexStagingBuffer.allocation));
+        std::copy(mesh.indices.begin(), mesh.indices.end(), indexData);
+        m_allocator.unmapMemory(indexStagingBuffer.allocation);
+        mesh.indexBuffer = createBuffer(indexBufferSize, vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst, vma::MemoryUsage::eGpuOnly);
+        submitImmediateCommand([=](vk::CommandBuffer cmd) {
+            vk::BufferCopy copy = {};
+            copy.dstOffset = 0;
+            copy.srcOffset = 0;
+            copy.size = indexBufferSize;
+            cmd.copyBuffer(indexStagingBuffer.buffer, mesh.indexBuffer.buffer, copy);
+        });
+        m_mainDeletionQueue.pushFunction([=]() {
+            destroyBuffer(mesh.indexBuffer);
+        });
+        destroyBuffer(indexStagingBuffer);
+    }
 }
 
 void VulkanEngine::recreateSwapChain() {
@@ -1647,14 +1650,14 @@ AllocatedImage VulkanEngine::loadImageFromFile(const char *filename) {
 }
 
 void VulkanEngine::loadTextures() {
-    Texture lostEmpire;
-    lostEmpire.image = loadImageFromFile("data/assets/lost_empire-RGBA.png");
-    vk::ImageViewCreateInfo imgInfo = vkinit::imageViewCreateInfo(vk::Format::eR8G8B8A8Srgb, lostEmpire.image.image, vk::ImageAspectFlagBits::eColor);
-    lostEmpire.imageView = m_vkDevice.createImageView(imgInfo);
-    m_textures["empire_diffuse"] = lostEmpire;
-    m_mainDeletionQueue.pushFunction([=]() {
-        m_vkDevice.destroyImageView(lostEmpire.imageView);
-    });
+//    Texture lostEmpire;
+//    lostEmpire.image = loadImageFromFile("data/assets/lost_empire-RGBA.png");
+//    vk::ImageViewCreateInfo imgInfo = vkinit::imageViewCreateInfo(vk::Format::eR8G8B8A8Srgb, lostEmpire.image.image, vk::ImageAspectFlagBits::eColor);
+//    lostEmpire.imageView = m_vkDevice.createImageView(imgInfo);
+//    m_textures["empire_diffuse"] = lostEmpire;
+//    m_mainDeletionQueue.pushFunction([=]() {
+//        m_vkDevice.destroyImageView(lostEmpire.imageView);
+//    });
 
     std::cout << "Loaded textures." << std::endl;
 }

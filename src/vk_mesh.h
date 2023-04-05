@@ -28,6 +28,7 @@ struct Mesh {
     AllocatedBuffer indexBuffer;
 
     bool loadFromObj(const char* filename);
+    bool loadFromHeightmap(const char* filename);
 };
 
 
