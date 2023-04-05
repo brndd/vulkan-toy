@@ -169,8 +169,8 @@ bool Mesh::loadFromHeightmap(const char *filename) {
             lh = static_cast<float>(h(i - 1, j)) / 255.0f * 10.0f;
             bh = static_cast<float>(h(i, j + 1)) / 255.0f * 10.0f;
             th = static_cast<float>(h(i, j - 1)) / 255.0f * 10.0f;
-            glm::vec3 hor = {1.0f, rh - lh, 0.0f};
-            glm::vec3 ver = {0.0f, bh - th, 1.0f};
+            glm::vec3 hor = {2.0f, rh - lh, 0.0f};
+            glm::vec3 ver = {0.0f, bh - th, 2.0f};
             new_vertex.normal = glm::normalize(glm::cross(ver, hor));
 
             this->vertices.push_back(new_vertex);
