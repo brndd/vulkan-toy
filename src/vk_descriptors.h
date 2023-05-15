@@ -2,6 +2,7 @@
 #define VKENG_VK_DESCRIPTORS_H
 
 #include <vector>
+#include <unordered_map>
 
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_hash.hpp>

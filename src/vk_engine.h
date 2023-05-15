@@ -6,6 +6,7 @@
 #include <deque>
 #include <glm/glm.hpp>
 #include <chrono>
+#include <functional>
 #include "vk_types.h"
 #include "vk_mesh.h"
 

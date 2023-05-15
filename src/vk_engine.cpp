@@ -7,7 +7,6 @@
 
 #include <iostream>
 #include <chrono>
-#include <thread>
 #include <vector>
 #include <cstring>
 #include <map>
