@@ -145,10 +145,11 @@ vkinit::depthStencilStateCreateInfo(bool depthTest, bool depthWrite, vk::Compare
 }
 
 vk::DescriptorSetLayoutBinding
-vkinit::descriptorSetLayoutBinding(vk::DescriptorType type, vk::ShaderStageFlags flags, uint32_t binding) {
+vkinit::descriptorSetLayoutBinding(vk::DescriptorType type, vk::ShaderStageFlags flags, uint32_t binding,
+                                   uint32_t descriptorCount) {
     vk::DescriptorSetLayoutBinding bind = {};
     bind.binding = binding;
-    bind.descriptorCount = 1;
+    bind.descriptorCount = descriptorCount;
     bind.descriptorType = type;
     bind.stageFlags = flags;
 
@@ -168,11 +169,13 @@ vkinit::writeDescriptorSet(vk::DescriptorType type, vk::DescriptorSet dstSet, vk
     return writeSet;
 }
 
-vk::WriteDescriptorSet vkinit::writeDescriptorSet(vk::DescriptorType type, vk::DescriptorSet dstSet, vk::DescriptorImageInfo* imageInfo, uint32_t binding) {
+vk::WriteDescriptorSet
+vkinit::writeDescriptorSet(vk::DescriptorType type, vk::DescriptorSet dstSet, vk::DescriptorImageInfo *imageInfo,
+                           uint32_t binding, uint32_t descriptorCount) {
     vk::WriteDescriptorSet writeSet = {};
     writeSet.dstBinding = binding;
     writeSet.dstSet = dstSet;
-    writeSet.descriptorCount = 1;
+    writeSet.descriptorCount = descriptorCount;
     writeSet.descriptorType = type;
     writeSet.pImageInfo = imageInfo;
 

@@ -33,11 +33,15 @@ namespace vkinit {
 
     vk::PipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo(bool depthTest, bool depthWrite, vk::CompareOp compareOp);
 
-    vk::DescriptorSetLayoutBinding descriptorSetLayoutBinding(vk::DescriptorType type, vk::ShaderStageFlags flags, uint32_t binding);
+    vk::DescriptorSetLayoutBinding
+    descriptorSetLayoutBinding(vk::DescriptorType type, vk::ShaderStageFlags flags, uint32_t binding,
+                               uint32_t descriptorCount = 1);
 
     vk::WriteDescriptorSet writeDescriptorSet(vk::DescriptorType type, vk::DescriptorSet dstSet, vk::DescriptorBufferInfo* bufferInfo, uint32_t binding);
 
-    vk::WriteDescriptorSet writeDescriptorSet(vk::DescriptorType type, vk::DescriptorSet dstSet, vk::DescriptorImageInfo* imageInfo, uint32_t binding);
+    vk::WriteDescriptorSet
+    writeDescriptorSet(vk::DescriptorType type, vk::DescriptorSet dstSet, vk::DescriptorImageInfo *imageInfo,
+                       uint32_t binding, uint32_t descriptorCount);
 
     vk::SamplerCreateInfo samplerCreateInfo(vk::Filter filters, vk::SamplerAddressMode addressMode = vk::SamplerAddressMode::eRepeat);
 

@@ -237,7 +237,7 @@ void VulkanEngine::draw() {
 }
 
 void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int count) {
-    glm::vec3 camPos = {0.0f, -10.0f, -60.0f};
+    glm::vec3 camPos = {0.0f, 0.0f, -10.0f};
     glm::mat4 view = glm::translate(glm::mat4(1.0f), camPos);
     float aspect = static_cast<float>(m_windowExtent.width) / static_cast<float>(m_windowExtent.height);
     glm::mat4 projection = glm::perspective(glm::radians(70.0f), aspect, 0.1f, 200.0f);
@@ -328,8 +328,13 @@ void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int c
 
         MeshPushConstants constants;
         constants.renderMatrix = object.transformMatrix;
-
         cmd.pushConstants(object.material->pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(MeshPushConstants), &constants);
+
+        //Push texIdx if the material is textured
+        if (object.material->textureSet.has_value()) {
+            int texIdx = static_cast<int>(object.textureId);
+            cmd.pushConstants(object.material->pipelineLayout, vk::ShaderStageFlagBits::eFragment, sizeof(MeshPushConstants), sizeof(int), &texIdx);
+        }
 
         //Only bind the mesh if it doesn't match the already bound one
         if (object.mesh != lastMesh) {
@@ -850,10 +855,14 @@ void VulkanEngine::createDescriptors() {
     //
 
     //Bind camera data at 0
-    vk::DescriptorSetLayoutBinding camBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex, 0);
+    vk::DescriptorSetLayoutBinding camBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eUniformBuffer,
+                                                                                   vk::ShaderStageFlagBits::eVertex, 0,
+                                                                                   1);
 
     //Bind scene parameters at 1
-    vk::DescriptorSetLayoutBinding sceneBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eVertex, 1);
+    vk::DescriptorSetLayoutBinding sceneBinding = vkinit::descriptorSetLayoutBinding(
+            vk::DescriptorType::eUniformBufferDynamic,
+            vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eVertex, 1, 1);
 
     vk::DescriptorSetLayoutBinding bindings0[] = {camBinding, sceneBinding};
 
@@ -869,10 +878,14 @@ void VulkanEngine::createDescriptors() {
     // Descriptor set layout 1
     //
     //Bind objects at 0
-    vk::DescriptorSetLayoutBinding objBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eVertex, 0);
+    vk::DescriptorSetLayoutBinding objBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eStorageBuffer,
+                                                                                   vk::ShaderStageFlagBits::eVertex, 0,
+                                                                                   1);
 
     //Bind lights at 1
-    vk::DescriptorSetLayoutBinding lightBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eFragment, 1);
+    vk::DescriptorSetLayoutBinding lightBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eStorageBuffer,
+                                                                                     vk::ShaderStageFlagBits::eFragment,
+                                                                                     1, 1);
     vk::DescriptorSetLayoutBinding bindings1[] = {objBinding, lightBinding};
     vk::DescriptorSetLayoutCreateInfo set1Info = {};
     set1Info.setBindings(bindings1);
@@ -886,13 +899,14 @@ void VulkanEngine::createDescriptors() {
     //
     // Descriptor set layout 2. We don't allocate it here yet.
     //
-    vk::DescriptorSetLayoutBinding texBinding = vkinit::descriptorSetLayoutBinding(vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 0);
+    vk::DescriptorSetLayoutBinding texBinding = vkinit::descriptorSetLayoutBinding(
+            vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 0, 5);
 
     vk::DescriptorSetLayoutCreateInfo set2Info = {};
     set2Info.setBindings(texBinding);
-    m_singleTextureDescriptorSetLayout = m_vkDevice.createDescriptorSetLayout(set2Info);
+    m_textureDescriptorSetLayout = m_vkDevice.createDescriptorSetLayout(set2Info);
     m_mainDeletionQueue.pushFunction([=]() {
-        m_vkDevice.destroyDescriptorSetLayout(m_singleTextureDescriptorSetLayout);
+        m_vkDevice.destroyDescriptorSetLayout(m_textureDescriptorSetLayout);
     });
 
     //Create a descriptor pool to hold 10 uniform buffers, and 10 dynamic uniform buffers
@@ -1026,51 +1040,29 @@ void VulkanEngine::initVulkan() {
 }
 
 void VulkanEngine::initScene() {
-    RenderObject terrain = {};
-    terrain.mesh = getMesh("heightmap");
-    terrain.material = getMaterial("defaultmesh");
-    terrain.transformMatrix = glm::translate(glm::vec3{0, 0, -5});
-    m_renderables.push_back(terrain);
+//    RenderObject terrain = {};
+//    terrain.mesh = getMesh("heightmap");
+//    terrain.material = getMaterial("defaultmesh");
+//    terrain.transformMatrix = glm::translate(glm::vec3{0, 0, -5});
+//    m_renderables.push_back(terrain);
 
-    RenderObject monkey;
-    monkey.mesh = getMesh("monkey");
-    monkey.material = getMaterial("defaultmesh");
-    //monkey.transformMatrix = glm::mat4{1.0f};
-    monkey.transformMatrix = glm::translate(glm::vec3{0, 10, -5});
-    m_renderables.push_back(monkey);
+//    RenderObject monkey;
+//    monkey.mesh = getMesh("monkey");
+//    monkey.material = getMaterial("defaultmesh");
+//    //monkey.transformMatrix = glm::mat4{1.0f};
+//    monkey.transformMatrix = glm::translate(glm::vec3{0, 10, -5});
+//    m_renderables.push_back(monkey);
 
-//    //
-//    // Minecraft level
-//    //
-//    RenderObject mine = {};
-//    mine.mesh = getMesh("mine");
-//    mine.material = getMaterial("texturedmesh");
-//    mine.transformMatrix = glm::translate(glm::vec3{5, -10, 0});
-//    m_mine = mine;
-//    m_renderables.push_back(mine);
-//
-//    //Create a sampler to hold the texture for the texturedmesh material
-//    vk::SamplerCreateInfo samplerInfo = vkinit::samplerCreateInfo(vk::Filter::eNearest); //nearest neighbour for that minecraft look
-//    m_nearestSampler = m_vkDevice.createSampler(samplerInfo);
-//    m_sceneDeletionQueue.pushFunction([=]() {
-//        m_vkDevice.destroySampler(m_nearestSampler);
-//    });
-//
-//    //Allocate the descriptor set for single-use texture on the material
-//    vk::DescriptorSetAllocateInfo allocInfo = {};
-//    allocInfo.descriptorPool = m_descriptorPool;
-//    allocInfo.setSetLayouts(m_singleTextureDescriptorSetLayout);
-//    m_textureDescriptorSet = m_vkDevice.allocateDescriptorSets(allocInfo)[0];
-//    mine.material->textureSet = m_textureDescriptorSet;
-//
-//    //Point the descriptor set to the texture (called "empire_diffuse")
-//    vk::DescriptorImageInfo imgInfo = {};
-//    imgInfo.sampler = m_nearestSampler;
-//    imgInfo.imageView = m_textures["empire_diffuse"].imageView;
-//    imgInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-//    vk::WriteDescriptorSet tex1 = vkinit::writeDescriptorSet(vk::DescriptorType::eCombinedImageSampler, m_textureDescriptorSet, &imgInfo, 0);
-//    m_vkDevice.updateDescriptorSets(tex1, nullptr);
-
+    auto mesh = getMesh("monkey");
+    auto mat = getMaterial("texturedmesh");
+    for (size_t i = 0; i < TEXTURE_ARRAY_SIZE; i++) {
+        RenderObject monke;
+        monke.mesh = mesh;
+        monke.material = mat;
+        monke.transformMatrix = glm::translate(glm::vec3(-6.0f + i*3, 0, 0));
+        monke.textureId = i;
+        m_renderables.push_back(monke);
+    }
 }
 
 bool VulkanEngine::checkValidationLayerSupport() {
@@ -1344,7 +1336,16 @@ void VulkanEngine::createPipelines() {
     //Build a pipeline for textured mesh
     //
     vk::PipelineLayoutCreateInfo texPipelineInfo = meshPipelineInfo;
-    vk::DescriptorSetLayout texSetLayouts[] = {m_globalDescriptorSetLayout, m_objectDescriptorSetLayout, m_singleTextureDescriptorSetLayout};
+
+    //Create extra push constant for this pipeline for fragment shaders
+    vk::PushConstantRange texPushConstants[2];
+    texPushConstants[0] = pushConstantRange;
+    texPushConstants[1].offset = sizeof(MeshPushConstants);
+    texPushConstants[1].size = sizeof(int);
+    texPushConstants[1].stageFlags = vk::ShaderStageFlagBits::eFragment;
+    texPipelineInfo.setPushConstantRanges(texPushConstants);
+
+    vk::DescriptorSetLayout texSetLayouts[] = {m_globalDescriptorSetLayout, m_objectDescriptorSetLayout, m_textureDescriptorSetLayout};
     texPipelineInfo.setSetLayouts(texSetLayouts);
 
     auto texPipelineLayout = m_vkDevice.createPipelineLayout(texPipelineInfo);
@@ -1648,15 +1649,47 @@ AllocatedImage VulkanEngine::loadImageFromFile(const char *filename) {
     return image;
 }
 
+Texture VulkanEngine::loadTexture(std::string file) {
+    Texture tex;
+    tex.image = loadImageFromFile(file.c_str());
+    vk::ImageViewCreateInfo imgInfo = vkinit::imageViewCreateInfo(vk::Format::eR8G8B8A8Srgb, tex.image.image, vk::ImageAspectFlagBits::eColor);
+    tex.imageView = m_vkDevice.createImageView(imgInfo);
+    m_mainDeletionQueue.pushFunction([=]() {
+        m_vkDevice.destroyImageView(tex.imageView);
+    });
+    return tex;
+}
+
 void VulkanEngine::loadTextures() {
-//    Texture lostEmpire;
-//    lostEmpire.image = loadImageFromFile("data/assets/lost_empire-RGBA.png");
-//    vk::ImageViewCreateInfo imgInfo = vkinit::imageViewCreateInfo(vk::Format::eR8G8B8A8Srgb, lostEmpire.image.image, vk::ImageAspectFlagBits::eColor);
-//    lostEmpire.imageView = m_vkDevice.createImageView(imgInfo);
-//    m_textures["empire_diffuse"] = lostEmpire;
-//    m_mainDeletionQueue.pushFunction([=]() {
-//        m_vkDevice.destroyImageView(lostEmpire.imageView);
-//    });
+    m_textures.push_back(loadTexture("data/assets/brick.png"));
+    m_textures.push_back(loadTexture("data/assets/concrete.png"));
+    m_textures.push_back(loadTexture("data/assets/fabric.png"));
+    m_textures.push_back(loadTexture("data/assets/rust.png"));
+    m_textures.push_back(loadTexture("data/assets/wood.png"));
+
+    vk::SamplerCreateInfo samplerInfo = vkinit::samplerCreateInfo(vk::Filter::eLinear);
+    m_linearSampler = m_vkDevice.createSampler(samplerInfo);
+    m_sceneDeletionQueue.pushFunction([=]() {
+        m_vkDevice.destroySampler(m_linearSampler);
+    });
+
+    auto material = getMaterial("texturedmesh");
+    vk::DescriptorSetAllocateInfo allocInfo = {};
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.setSetLayouts(m_textureDescriptorSetLayout);
+    m_textureDescriptorSet = m_vkDevice.allocateDescriptorSets(allocInfo)[0];
+    material->textureSet = m_textureDescriptorSet;
+
+    vk::DescriptorImageInfo imgInfos[TEXTURE_ARRAY_SIZE];
+    for (size_t i = 0; i < TEXTURE_ARRAY_SIZE; i++) {
+        auto& info = imgInfos[i];
+        info.sampler = m_linearSampler;
+        info.imageView = m_textures[i].imageView;
+        info.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+    }
+    vk::WriteDescriptorSet tex1 = vkinit::writeDescriptorSet(vk::DescriptorType::eCombinedImageSampler,
+                                                             m_textureDescriptorSet, imgInfos, 0, TEXTURE_ARRAY_SIZE);
+    m_vkDevice.updateDescriptorSets(tex1, nullptr);
 
     std::cout << "Loaded textures." << std::endl;
 }

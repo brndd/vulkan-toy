@@ -12,6 +12,8 @@
 
 constexpr int FRAMES_IN_FLIGHT = 2;
 
+constexpr size_t TEXTURE_ARRAY_SIZE = 5;
+
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
@@ -36,6 +38,7 @@ struct Material {
 struct RenderObject {
     Mesh * mesh;
     Material * material;
+    size_t textureId;
     glm::mat4 transformMatrix;
 };
 
@@ -210,7 +213,7 @@ private:
     //Meshes, indexed by mesh name
     std::unordered_map<std::string, Mesh> m_meshes;
     //Textures, indexed by texture name
-    std::unordered_map<std::string, Texture> m_textures;
+    std::vector<Texture> m_textures;
 
     GPUSceneData m_sceneParameters;
     AllocatedBuffer m_sceneParameterBuffer;
@@ -219,10 +222,11 @@ private:
     vk::DescriptorPool m_descriptorPool;
     vk::DescriptorSetLayout m_globalDescriptorSetLayout;
     vk::DescriptorSetLayout m_objectDescriptorSetLayout;
-    vk::DescriptorSetLayout m_singleTextureDescriptorSetLayout;
+    vk::DescriptorSetLayout m_textureDescriptorSetLayout;
     vk::DescriptorSet m_textureDescriptorSet;
 
-    vk::Sampler m_nearestSampler;
+    //vk::Sampler m_nearestSampler;
+    vk::Sampler m_linearSampler;
 
     //
     // Private methods
@@ -292,6 +296,7 @@ private:
 
     void submitImmediateCommand(std::function<void(vk::CommandBuffer cmd)> && function);
 
+    Texture loadTexture(std::string file);
     void loadTextures();
     AllocatedImage loadImageFromFile(const char * filename);
 };

@@ -30,8 +30,11 @@ layout(std140, set = 1, binding = 1) readonly buffer LightBuffer{
     PointLightData lights[];
 } lightBuffer;
 
+layout(push_constant) uniform per_object {
+    layout(offset=80) int texIdx;
+} texData;
 
-layout (set=2, binding=0) uniform sampler2D tex1;
+layout (set=2, binding=0) uniform sampler2D tex1[5];
 
 //Returns the specular component only
 //lightColor.w = exponent
@@ -45,7 +48,8 @@ vec3 blinnPhong(vec3 lightDir, vec3 normal, vec4 lightColor) {
 }
 
 void main() {
-    vec3 color = texture(tex1, texCoord).xyz;
+    vec3 color = texture(tex1[texData.texIdx], texCoord).xyz;
+    //vec3 color = vec3(1.0f);
     vec3 lights = vec3(0.0f);
     //Calculate sunlight
     {
@@ -61,7 +65,7 @@ void main() {
     }
 
     //Calculate dynamic lights
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 0; i++) {
         PointLightData light = lightBuffer.lights[i];
         vec3 pointPos = light.lightPosition.xyz;
         vec3 pointDir = normalize(pointPos - fragPos);
