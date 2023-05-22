@@ -106,12 +106,17 @@ void VulkanEngine::run() {
     SDL_Event e;
     bool bQuit = false;
 
+    float timeDelta = 0.0f;
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+    int mouse_x = 0;
+    int mouse_y = 0;
     while (!bQuit) {
         auto start = std::chrono::high_resolution_clock::now();
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) {
                 bQuit = true;
-            } else if (e.type == SDL_KEYDOWN) {
+            }
+            else if (e.type == SDL_KEYDOWN) {
                 std::cout << "[SDL_KEYDOWN] sym: " << e.key.keysym.sym << " code: " << e.key.keysym.scancode
                           << std::endl;
                 if (e.key.keysym.scancode == SDL_SCANCODE_SPACE) {
@@ -131,11 +136,19 @@ void VulkanEngine::run() {
                     m_framebufferResized = true;
                 }
             }
+            else if (e.type == SDL_MOUSEMOTION) {
+                if (e.motion.windowID == SDL_GetWindowID(m_sdlWindow)) {
+                    m_camera.processMouseMovement((float)e.motion.xrel, (float)e.motion.yrel);
+                }
+            }
         }
+        m_camera.processKeyboard(timeDelta);
+
 
         draw();
         auto end = std::chrono::high_resolution_clock::now();
         auto elapsedTime = std::chrono::duration_cast<std::chrono::duration<float>>(end - start).count();
+        timeDelta = elapsedTime;
         m_simulationTime += elapsedTime;
     }
 }
@@ -237,11 +250,16 @@ void VulkanEngine::draw() {
 }
 
 void VulkanEngine::drawObjects(vk::CommandBuffer cmd, RenderObject *first, int count) {
-    glm::vec3 camPos = {0.0f, 0.0f, -10.0f};
-    glm::mat4 view = glm::translate(glm::mat4(1.0f), camPos);
+//    glm::vec3 camPos = {0.0f, 0.0f, -10.0f};
+//    glm::mat4 view = glm::translate(glm::mat4(1.0f), camPos);
+//    float aspect = static_cast<float>(m_windowExtent.width) / static_cast<float>(m_windowExtent.height);
+//    glm::mat4 projection = glm::perspective(glm::radians(70.0f), aspect, 0.1f, 200.0f);
+//    projection[1][1] *= -1;
+
     float aspect = static_cast<float>(m_windowExtent.width) / static_cast<float>(m_windowExtent.height);
-    glm::mat4 projection = glm::perspective(glm::radians(70.0f), aspect, 0.1f, 200.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(m_camera.m_fov), aspect, 0.1f, 200.0f);
     projection[1][1] *= -1;
+    glm::mat4 view = m_camera.getViewMatrix();
 
     auto curFrame = getCurrentFrame();
     float uTime = m_simulationTime;

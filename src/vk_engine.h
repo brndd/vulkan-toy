@@ -9,6 +9,7 @@
 #include <functional>
 #include "vk_types.h"
 #include "vk_mesh.h"
+#include "camera.h"
 
 constexpr int FRAMES_IN_FLIGHT = 2;
 
@@ -227,6 +228,8 @@ private:
 
     //vk::Sampler m_nearestSampler;
     vk::Sampler m_linearSampler;
+
+    camera m_camera;
 
     //
     // Private methods
