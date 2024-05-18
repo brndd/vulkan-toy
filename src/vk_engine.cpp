@@ -169,7 +169,7 @@ void VulkanEngine::draw() {
         return;
     }
     else if (nextImageResult != vk::Result::eSuccess) {
-        vk::throwResultException(nextImageResult, "Failed to acquire swap chain image.");
+        vk::detail::throwResultException(nextImageResult, "Failed to acquire swap chain image.");
     }
 
     m_vkDevice.resetFences(frame.inFlightFence);
@@ -243,7 +243,7 @@ void VulkanEngine::draw() {
         recreateSwapChain();
     }
     else if (presentResult != vk::Result::eSuccess) {
-        vk::throwResultException(nextImageResult, "Failed to present swap chain image.");
+        vk::detail::throwResultException(nextImageResult, "Failed to present swap chain image.");
     }
 
     m_frameNumber++;
