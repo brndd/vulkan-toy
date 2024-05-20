@@ -1058,11 +1058,12 @@ void VulkanEngine::initVulkan() {
 }
 
 void VulkanEngine::initScene() {
-//    RenderObject terrain = {};
-//    terrain.mesh = getMesh("heightmap");
-//    terrain.material = getMaterial("defaultmesh");
-//    terrain.transformMatrix = glm::translate(glm::vec3{0, 0, -5});
-//    m_renderables.push_back(terrain);
+    RenderObject terrain = {};
+    terrain.mesh = getMesh("heightmap");
+    terrain.material = getMaterial("terrain");
+    terrain.transformMatrix = glm::translate(glm::vec3{0, 0, -5});
+    terrain.textureId = 0;
+    m_renderables.push_back(terrain);
 
 //    RenderObject monkey;
 //    monkey.mesh = getMesh("monkey");
@@ -1277,6 +1278,8 @@ void VulkanEngine::createPipelines() {
     vk::ShaderModule defaultLitFragShader = loadShaderModule("shaders/default_lit.frag.spv");
     //Textured shader
     vk::ShaderModule defaultTexFragShader = loadShaderModule("shaders/textured_lit.frag.spv");
+    //Terrain
+    vk::ShaderModule defaultTerrainFragShader = loadShaderModule("shaders/terrain_textured_lit.frag.spv");
     //Load mesh vertex shader
     vk::ShaderModule meshVertShader = loadShaderModule("shaders/tri_mesh.vert.spv");
     std::cout << "Loaded shaders." << std::endl;
@@ -1374,10 +1377,33 @@ void VulkanEngine::createPipelines() {
     auto texPipeline = pipelineBuilder.buildPipeline(m_vkDevice, m_renderPass);
     createMaterial(texPipeline, texPipelineLayout, "texturedmesh");
 
+    //Textured terrain pipeline, similar to the above one for textured meshes
+    vk::PipelineLayoutCreateInfo terrainPipelineInfo = meshPipelineInfo;
+
+    vk::PushConstantRange texTerrainPushConstants[2];
+    texTerrainPushConstants[0] = pushConstantRange;
+    texTerrainPushConstants[1].offset = sizeof(MeshPushConstants);
+    texTerrainPushConstants[1].size = sizeof(int);
+    texTerrainPushConstants[1].stageFlags = vk::ShaderStageFlagBits::eFragment;
+    texPipelineInfo.setPushConstantRanges(texTerrainPushConstants);
+    terrainPipelineInfo.setPushConstantRanges(texTerrainPushConstants);
+
+    vk::DescriptorSetLayout terrainSetLayouts[] = {m_globalDescriptorSetLayout, m_objectDescriptorSetLayout, m_textureDescriptorSetLayout};
+    terrainPipelineInfo.setSetLayouts(terrainSetLayouts);
+
+    auto terrainPipelineLayout = m_vkDevice.createPipelineLayout(terrainPipelineInfo);
+    pipelineBuilder.m_shaderStageInfos.clear();
+    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eVertex, meshVertShader));
+    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eFragment, defaultTerrainFragShader));
+    pipelineBuilder.m_pipelineLayout = terrainPipelineLayout;
+    auto terrainPipeline = pipelineBuilder.buildPipeline(m_vkDevice, m_renderPass);
+    createMaterial(terrainPipeline, terrainPipelineLayout, "terrain");
+
     //Destroy shader modules
     m_vkDevice.destroyShaderModule(meshVertShader);
     m_vkDevice.destroyShaderModule(defaultLitFragShader);
     m_vkDevice.destroyShaderModule(defaultTexFragShader);
+    m_vkDevice.destroyShaderModule(defaultTerrainFragShader);
 
     //Queue destruction of pipelines
     m_pipelineDeletionQueue.pushFunction([=]() {

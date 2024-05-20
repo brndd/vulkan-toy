@@ -10,6 +10,7 @@ layout (location=1) out vec3 texCoord;
 layout (location=2) out vec3 fragPos;
 layout (location=3) out vec3 normal;
 layout (location=4) out vec3 viewPos;
+layout (location=5) out float worldHeight;
 
 layout(push_constant) uniform constants
 {
@@ -41,4 +42,6 @@ void main() {
     fragPos = (modelMatrix * vec4(vPosition, 1.0f)).xyz;
     normal = mat3(transpose(inverse(modelMatrix))) * vNormal;
     viewPos = cameraData.view[3].xyz;
+    vec3 worldPos = vec3(modelMatrix * vec4(vPosition, 1.0));
+    worldHeight = worldPos.y;
 }
