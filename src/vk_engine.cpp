@@ -918,13 +918,23 @@ void VulkanEngine::createDescriptors() {
     // Descriptor set layout 2. We don't allocate it here yet.
     //
     vk::DescriptorSetLayoutBinding texBinding = vkinit::descriptorSetLayoutBinding(
-            vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 0, 5);
+            vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 0, TEXTURE_ARRAY_SIZE);
 
     vk::DescriptorSetLayoutCreateInfo set2Info = {};
     set2Info.setBindings(texBinding);
     m_textureDescriptorSetLayout = m_vkDevice.createDescriptorSetLayout(set2Info);
     m_mainDeletionQueue.pushFunction([=]() {
         m_vkDevice.destroyDescriptorSetLayout(m_textureDescriptorSetLayout);
+    });
+
+    //Third one for terrain textures
+    vk::DescriptorSetLayoutBinding terrainTexBinding = vkinit::descriptorSetLayoutBinding(
+            vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 0, TERRAIN_TEXTURE_ARRAY_SIZE);
+    vk::DescriptorSetLayoutCreateInfo set3Info = {};
+    set3Info.setBindings(terrainTexBinding);
+    m_terrainTextureDescriptorSetLayout = m_vkDevice.createDescriptorSetLayout(set3Info);
+    m_mainDeletionQueue.pushFunction([=]() {
+        m_vkDevice.destroyDescriptorSetLayout(m_terrainTextureDescriptorSetLayout);
     });
 
     //Create a descriptor pool to hold 10 uniform buffers, and 10 dynamic uniform buffers
@@ -1385,10 +1395,9 @@ void VulkanEngine::createPipelines() {
     texTerrainPushConstants[1].offset = sizeof(MeshPushConstants);
     texTerrainPushConstants[1].size = sizeof(int);
     texTerrainPushConstants[1].stageFlags = vk::ShaderStageFlagBits::eFragment;
-    texPipelineInfo.setPushConstantRanges(texTerrainPushConstants);
     terrainPipelineInfo.setPushConstantRanges(texTerrainPushConstants);
 
-    vk::DescriptorSetLayout terrainSetLayouts[] = {m_globalDescriptorSetLayout, m_objectDescriptorSetLayout, m_textureDescriptorSetLayout};
+    vk::DescriptorSetLayout terrainSetLayouts[] = {m_globalDescriptorSetLayout, m_objectDescriptorSetLayout, m_terrainTextureDescriptorSetLayout};
     terrainPipelineInfo.setSetLayouts(terrainSetLayouts);
 
     auto terrainPipelineLayout = m_vkDevice.createPipelineLayout(terrainPipelineInfo);
@@ -1412,6 +1421,9 @@ void VulkanEngine::createPipelines() {
 
         m_vkDevice.destroyPipeline(texPipeline);
         m_vkDevice.destroyPipelineLayout(texPipelineLayout);
+
+        m_vkDevice.destroyPipeline(terrainPipeline);
+        m_vkDevice.destroyPipelineLayout(terrainPipelineLayout);
     });
 }
 
@@ -1734,6 +1746,29 @@ void VulkanEngine::loadTextures() {
     vk::WriteDescriptorSet tex1 = vkinit::writeDescriptorSet(vk::DescriptorType::eCombinedImageSampler,
                                                              m_textureDescriptorSet, imgInfos, 0, TEXTURE_ARRAY_SIZE);
     m_vkDevice.updateDescriptorSets(tex1, nullptr);
+
+    //Terrain textures use a different set
+    m_terrainTextures.push_back(loadTexture("data/assets/grass.png"));
+    m_terrainTextures.push_back(loadTexture("data/assets/rock.png"));
+    m_terrainTextures.push_back(loadTexture("data/assets/snow.png"));
+
+    auto terrainMaterial = getMaterial("terrain");
+    vk::DescriptorSetAllocateInfo terrainAllocInfo = {};
+    terrainAllocInfo.descriptorPool = m_descriptorPool;
+    terrainAllocInfo.setSetLayouts(m_terrainTextureDescriptorSetLayout);
+    m_terrainTextureDescriptorSet = m_vkDevice.allocateDescriptorSets(terrainAllocInfo)[0];
+    terrainMaterial->textureSet = m_terrainTextureDescriptorSet;
+
+    vk::DescriptorImageInfo terrainImgInfos[TERRAIN_TEXTURE_ARRAY_SIZE];
+    for (size_t i = 0; i < TERRAIN_TEXTURE_ARRAY_SIZE; i++) {
+        auto& info = terrainImgInfos[i];
+        info.sampler = m_linearSampler;
+        info.imageView = m_terrainTextures[i].imageView;
+        info.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+    }
+    vk::WriteDescriptorSet terrainTex1 = vkinit::writeDescriptorSet(vk::DescriptorType::eCombinedImageSampler,
+                                                                    m_terrainTextureDescriptorSet, terrainImgInfos, 0, TERRAIN_TEXTURE_ARRAY_SIZE);
+    m_vkDevice.updateDescriptorSets(terrainTex1, nullptr);
 
     std::cout << "Loaded textures." << std::endl;
 }

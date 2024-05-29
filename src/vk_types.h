@@ -5,7 +5,7 @@
 #include <vulkan/vulkan.hpp>
 #include <vk_mem_alloc.hpp>
 
-#define S_TO_NS(x) (static_cast<uint64_t>(x * 1000000000))
+#define S_TO_NS(x) (static_cast<uint64_t>(x * 1000000000ul))
 
 struct AllocatedBuffer {
     vk::Buffer buffer;

@@ -157,7 +157,7 @@ bool Mesh::loadFromHeightmap(const char *filename) {
             Vertex new_vertex;
             new_vertex.position.x = static_cast<float>(-mapX / 2.0f + i);
             new_vertex.position.z = static_cast<float>(-mapY / 2.0f + j);
-            new_vertex.position.y = static_cast<float>(h(i, j)) / 255.0f * 10.0f;
+            new_vertex.position.y = static_cast<float>(h(i, j)) / 255.0f * 100.0f;
 
             //UV
             new_vertex.uv.x = static_cast<float>(i) / (mapX - 1);

@@ -14,6 +14,7 @@
 constexpr int FRAMES_IN_FLIGHT = 2;
 
 constexpr size_t TEXTURE_ARRAY_SIZE = 5;
+constexpr size_t TERRAIN_TEXTURE_ARRAY_SIZE = 3;
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
@@ -215,6 +216,8 @@ private:
     std::unordered_map<std::string, Mesh> m_meshes;
     //Textures, indexed by texture name
     std::vector<Texture> m_textures;
+    //Terrain textures
+    std::vector<Texture> m_terrainTextures;
 
     GPUSceneData m_sceneParameters;
     AllocatedBuffer m_sceneParameterBuffer;
@@ -225,6 +228,8 @@ private:
     vk::DescriptorSetLayout m_objectDescriptorSetLayout;
     vk::DescriptorSetLayout m_textureDescriptorSetLayout;
     vk::DescriptorSet m_textureDescriptorSet;
+    vk::DescriptorSetLayout m_terrainTextureDescriptorSetLayout;
+    vk::DescriptorSet m_terrainTextureDescriptorSet;
 
     //vk::Sampler m_nearestSampler;
     vk::Sampler m_linearSampler;
