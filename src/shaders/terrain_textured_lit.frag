@@ -35,7 +35,7 @@ layout(push_constant) uniform per_object {
     layout(offset=80) int texIdx;
 } texData;
 
-layout (set=2, binding=0) uniform sampler2D tex1[5];
+layout (set=2, binding=0) uniform sampler2D tex1[3];
 
 //Returns the specular component only
 //lightColor.w = exponent

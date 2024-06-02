@@ -29,6 +29,7 @@ struct Mesh {
 
     bool loadFromObj(const char* filename);
     bool loadFromHeightmap(const char* filename);
+    bool sampleFromNoise(int x, int z, int size);
 };
 
 

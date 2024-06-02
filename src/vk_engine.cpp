@@ -83,7 +83,11 @@ void VulkanEngine::cleanup() {
         //Wait for the device to finish rendering before cleaning up
         m_vkDevice.waitIdle();
 
+        //Delete terrain
+        deleteAllTerrainChunks();
+
         //Destroy all objects in the deletion queues
+        getCurrentFrame().frameDeletionQueue.flush();
         m_sceneDeletionQueue.flush();
         m_pipelineDeletionQueue.flush();
         m_mainDeletionQueue.flush();
@@ -144,7 +148,6 @@ void VulkanEngine::run() {
         }
         m_camera.processKeyboard(timeDelta);
 
-
         draw();
         auto end = std::chrono::high_resolution_clock::now();
         auto elapsedTime = std::chrono::duration_cast<std::chrono::duration<float>>(end - start).count();
@@ -154,7 +157,7 @@ void VulkanEngine::run() {
 }
 
 void VulkanEngine::draw() {
-    auto frame = getCurrentFrame();
+    FrameData& frame = getCurrentFrame();
 
     //Wait until the GPU has rendered the previous frame, with a timeout of 1 second.
     auto waitResult = m_vkDevice.waitForFences(frame.inFlightFence, true, S_TO_NS(1));
@@ -171,6 +174,11 @@ void VulkanEngine::draw() {
     else if (nextImageResult != vk::Result::eSuccess) {
         vk::detail::throwResultException(nextImageResult, "Failed to acquire swap chain image.");
     }
+
+    //Clear the frame's deletion queue
+    frame.frameDeletionQueue.flush();
+
+    updateTerrainChunks(frame.frameDeletionQueue);
 
     m_vkDevice.resetFences(frame.inFlightFence);
 
@@ -212,7 +220,14 @@ void VulkanEngine::draw() {
     //
     cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 
-    drawObjects(cmd, m_renderables.data(), m_renderables.size());
+    //Concatenate renderables with terrain renderables
+    std::vector<RenderObject> allRenderables;
+    allRenderables.insert(allRenderables.end(), m_renderables.begin(), m_renderables.end());
+    for (const auto& pair : m_terrainRenderables) {
+        allRenderables.push_back(pair.second);
+    }
+    drawObjects(cmd, allRenderables.data(), allRenderables.size());
+
 
     //Finalize the render pass
     cmd.endRenderPass();
@@ -1068,12 +1083,12 @@ void VulkanEngine::initVulkan() {
 }
 
 void VulkanEngine::initScene() {
-    RenderObject terrain = {};
-    terrain.mesh = getMesh("heightmap");
-    terrain.material = getMaterial("terrain");
-    terrain.transformMatrix = glm::translate(glm::vec3{0, 0, -5});
-    terrain.textureId = 0;
-    m_renderables.push_back(terrain);
+//    RenderObject terrain = {};
+//    terrain.mesh = getMesh("heightmap");
+//    terrain.material = getMaterial("terrain");
+//    terrain.transformMatrix = glm::translate(glm::vec3{0, 0, -5});
+//    terrain.textureId = 0;
+//    m_renderables.push_back(terrain);
 
 //    RenderObject monkey;
 //    monkey.mesh = getMesh("monkey");
@@ -1450,7 +1465,7 @@ void VulkanEngine::loadMeshes() {
 }
 
 //Uploads a mesh to a GPU local buffer
-void VulkanEngine::uploadMesh(Mesh &mesh) {
+void VulkanEngine::uploadMesh(Mesh &mesh, bool addToDeletionQueue) {
     //Allocate a CPU side staging buffer to hold mesh before uploading
     const size_t bufferSize = mesh.vertices.size() * sizeof(Vertex);
     AllocatedBuffer stagingBuffer = createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eCpuOnly);
@@ -1473,9 +1488,11 @@ void VulkanEngine::uploadMesh(Mesh &mesh) {
     });
 
     //Clean up
-    m_mainDeletionQueue.pushFunction([=]() {
-        destroyBuffer(mesh.vertexBuffer);
-    });
+    if (addToDeletionQueue) {
+        m_mainDeletionQueue.pushFunction([=]() {
+            destroyBuffer(mesh.vertexBuffer);
+        });
+    }
     destroyBuffer(stagingBuffer);
 
     //Do the same for the index buffer
@@ -1494,9 +1511,11 @@ void VulkanEngine::uploadMesh(Mesh &mesh) {
             copy.size = indexBufferSize;
             cmd.copyBuffer(indexStagingBuffer.buffer, mesh.indexBuffer.buffer, copy);
         });
-        m_mainDeletionQueue.pushFunction([=]() {
-            destroyBuffer(mesh.indexBuffer);
-        });
+        if (addToDeletionQueue) {
+            m_mainDeletionQueue.pushFunction([=]() {
+                destroyBuffer(mesh.indexBuffer);
+            });
+        }
         destroyBuffer(indexStagingBuffer);
     }
 }
@@ -1771,6 +1790,87 @@ void VulkanEngine::loadTextures() {
     m_vkDevice.updateDescriptorSets(terrainTex1, nullptr);
 
     std::cout << "Loaded textures." << std::endl;
+}
+
+void VulkanEngine::generateTerrainChunk(int x, int z) {
+    Mesh mesh;
+    mesh.sampleFromNoise(x, z, m_terrainChunkSize);
+    uploadMesh(mesh, false);
+    auto result = m_terrainMeshes.insert({std::make_pair(x, z), mesh});
+    if (!result.second) {
+        std::cout << "Failed to insert terrain mesh at " << x << ", " << z << std::endl;
+        return;
+    }
+    Mesh * meshPtr = &(result.first->second);
+    RenderObject terrain = {};
+    terrain.mesh = meshPtr;
+    terrain.material = getMaterial("terrain");
+    terrain.transformMatrix = glm::translate(glm::vec3{x * (m_terrainChunkSize - 1), 0, z * (m_terrainChunkSize - 1)});
+    terrain.textureId = 0;
+    m_terrainRenderables[std::make_pair(x, z)] = terrain;
+
+    std::cout << "Generated terrain chunk at " << x << ", " << z << std::endl;
+}
+
+void VulkanEngine::deleteTerrainChunk(int x, int z, DeletionQueue& deletionQueue) {
+    auto pair = std::make_pair(x, z);
+    m_terrainRenderables.erase(pair);
+
+    auto it = m_terrainMeshes.find(pair);
+    if (it != m_terrainMeshes.end()) {
+        auto vertexBuffer = it->second.vertexBuffer;
+        deletionQueue.pushFunction([=]() {
+            destroyBuffer(vertexBuffer);
+        });
+        if (it->second.indexBuffer.buffer != VK_NULL_HANDLE) {
+            auto indexBuffer = it->second.indexBuffer;
+            deletionQueue.pushFunction([=]() {
+                destroyBuffer(indexBuffer);
+            });
+        }
+        m_terrainMeshes.erase(it);
+    }
+
+    std::cout << "Deleted terrain chunk at " << x << ", " << z << std::endl;
+}
+
+void VulkanEngine::updateTerrainChunks(DeletionQueue& deletionQueue) {
+    auto camPos = m_camera.m_position;
+    int camX = static_cast<int>(camPos.x / m_terrainChunkSize);
+    int camZ = static_cast<int>(camPos.z / m_terrainChunkSize);
+
+    //Delete chunks out of range
+    std::vector<std::pair<int, int>> toDelete;
+    for (auto & pair : m_terrainRenderables) {
+        int x = pair.first.first;
+        int z = pair.first.second;
+        if (std::abs(x - camX) > m_terrainRenderDistance || std::abs(z - camZ) > m_terrainRenderDistance) {
+            toDelete.push_back(pair.first);
+        }
+    }
+    for (auto & pair : toDelete) {
+        deleteTerrainChunk(pair.first, pair.second, deletionQueue);
+    }
+
+    //Generate new chunks in range
+    for (int x = camX - m_terrainRenderDistance; x <= camX + m_terrainRenderDistance; x++) {
+        for (int z = camZ - m_terrainRenderDistance; z <= camZ + m_terrainRenderDistance; z++) {
+            auto pair = std::make_pair(x, z);
+            if (m_terrainRenderables.find(pair) == m_terrainRenderables.end()) {
+                generateTerrainChunk(x, z);
+            }
+        }
+    }
+}
+
+void VulkanEngine::deleteAllTerrainChunks() {
+    std::vector<std::pair<int, int>> toDelete;
+    for (auto & pair : m_terrainRenderables) {
+        toDelete.push_back(pair.first);
+    }
+    for (auto & pair : toDelete) {
+        deleteTerrainChunk(pair.first, pair.second, m_mainDeletionQueue);
+    }
 }
 
 vk::Pipeline PipelineBuilder::buildPipeline(vk::Device device, vk::RenderPass pass) {

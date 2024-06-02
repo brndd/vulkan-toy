@@ -25,6 +25,25 @@ struct QueueFamilyIndices {
     }
 };
 
+/*
+ * Simple (and somewhat inefficient) deletion queue for cleaning up Vulkan objects when the engine exists.
+ * Heavily inspired by vkguide.dev (like everything else here)
+ */
+struct DeletionQueue {
+    std::deque<std::function<void()>> deleters;
+
+    void pushFunction(std::function<void()> && func) {
+        deleters.push_back(func);
+    }
+
+    void flush() {
+        for (auto it = deleters.rbegin(); it != deleters.rend(); it++) {
+            (*it)();
+        }
+        deleters.clear();
+    }
+};
+
 struct SwapChainSupportDetails {
     vk::SurfaceCapabilitiesKHR capabilities;
     std::vector<vk::SurfaceFormatKHR> formats;
@@ -65,31 +84,14 @@ struct FrameData {
 
     vk::DescriptorSet globalDescriptor;
     vk::DescriptorSet objectDescriptor;
+
+    DeletionQueue frameDeletionQueue;
 };
 
 struct UploadContext {
     vk::Fence uploadFence;
     vk::CommandPool commandPool;
     vk::CommandBuffer commandBuffer;
-};
-
-/*
- * Simple (and somewhat inefficient) deletion queue for cleaning up Vulkan objects when the engine exists.
- * Heavily inspired by vkguide.dev (like everything else here)
- */
-struct DeletionQueue {
-    std::deque<std::function<void()>> deleters;
-
-    void pushFunction(std::function<void()> && func) {
-        deleters.push_back(func);
-    }
-
-    void flush() {
-        for (auto it = deleters.rbegin(); it != deleters.rend(); it++) {
-            (*it)();
-        }
-        deleters.clear();
-    }
 };
 
 struct MeshPushConstants {
@@ -237,6 +239,42 @@ private:
     camera m_camera;
 
     //
+    //Terrain rendering stuff. This is here because this code is horrible.
+    //splitting it into a separate class would be a pain because mesh allocation and uploading
+    //isn't polymorphic and is built into the engine and I don't want to deal with that nonsense
+    //
+    const int m_terrainRenderDistance = 1;
+    const int m_terrainChunkSize = 32;
+    const int m_terrainSeed = 7; //chosen by a fair dice roll. guaranteed to be random.
+
+    // https://stackoverflow.com/questions/28367913/how-to-stdhash-an-unordered-stdpair
+    struct pair_hash {
+        template<typename T>
+        void hash_combine(std::size_t &seed, T const &key) const {
+            std::hash<T> hasher;
+            seed ^= hasher(key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        }
+
+        template <typename T1, typename T2>
+        std::size_t operator()(std::pair<T1, T2> const &p) const {
+            std::size_t seed(0);
+            hash_combine(seed, p.first);
+            hash_combine(seed, p.second);
+            return seed;
+        }
+    };
+
+    //why are these separate? because everything sucks, that's why
+    std::unordered_map<std::pair<int, int>, Mesh, pair_hash> m_terrainMeshes;
+    std::unordered_map<std::pair<int, int>, RenderObject, pair_hash> m_terrainRenderables;
+
+    void generateTerrainChunk(int x, int z);
+    void deleteTerrainChunk(int x, int z, DeletionQueue& deletionQueue);
+    void deleteAllTerrainChunks();
+    void updateTerrainChunks(DeletionQueue& deletionQueue);
+
+
+    //
     // Private methods
     //
 
@@ -295,7 +333,7 @@ private:
     vk::ShaderModule loadShaderModule(const char * filePath);
 
     void loadMeshes();
-    void uploadMesh(Mesh &mesh);
+    void uploadMesh(Mesh &mesh, bool addToDeletionQueue = true);
 
     AllocatedBuffer createBuffer(size_t size, vk::BufferUsageFlags usageFlags, vma::MemoryUsage memoryUsage);
     void destroyBuffer(AllocatedBuffer buffer);
