@@ -1103,7 +1103,7 @@ void VulkanEngine::initScene() {
         RenderObject monke;
         monke.mesh = mesh;
         monke.material = mat;
-        monke.transformMatrix = glm::translate(glm::vec3(-6.0f + i*3, 0, 0));
+        monke.transformMatrix = glm::translate(glm::vec3(-6.0f + i*3, 20, 0));
         monke.textureId = i;
         m_renderables.push_back(monke);
     }

@@ -243,7 +243,7 @@ private:
     //splitting it into a separate class would be a pain because mesh allocation and uploading
     //isn't polymorphic and is built into the engine and I don't want to deal with that nonsense
     //
-    const int m_terrainRenderDistance = 1;
+    const int m_terrainRenderDistance = 3;
     const int m_terrainChunkSize = 32;
     const int m_terrainSeed = 7; //chosen by a fair dice roll. guaranteed to be random.
 
