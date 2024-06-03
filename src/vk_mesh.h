@@ -30,6 +30,7 @@ struct Mesh {
 
     bool loadFromObj(const char* filename);
     bool loadFromHeightmap(const char* filename);
+    bool flatPlane(int x, int z, int size);
     bool sampleFromNoise(int x, int z, int size, const siv::PerlinNoise& noiseSource);
 };
 

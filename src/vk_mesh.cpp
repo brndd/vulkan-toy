@@ -195,6 +195,41 @@ bool Mesh::loadFromHeightmap(const char *filename) {
     return true;
 }
 
+bool Mesh::flatPlane(int x, int z, int size) {
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            Vertex new_vertex;
+            new_vertex.position.x = static_cast<float>(-size / 2.0f + i);
+            new_vertex.position.z = static_cast<float>(-size / 2.0f + j);
+            new_vertex.position.y = 0.0f;
+
+            //UV
+            new_vertex.uv.x = static_cast<float>(i) / (size - 1);
+            new_vertex.uv.y = static_cast<float>(j) / (size - 1);
+
+            //Normals
+            new_vertex.normal = {0.0f, 1.0f, 0.0f};
+
+            this->vertices.push_back(new_vertex);
+        }
+    }
+
+    //Indices
+    for (int i = 0; i < size - 1; i++) {
+        for (int j = 0; j < size - 1; j++) {
+            int start = i + j * size;
+            indices.push_back(start);
+            indices.push_back(start + 1);
+            indices.push_back(start + size);
+            indices.push_back(start + 1);
+            indices.push_back(start + 1 + size);
+            indices.push_back(start + size);
+        }
+    }
+
+    return true;
+}
+
 bool Mesh::sampleFromNoise(int x, int z, int size, const siv::PerlinNoise& noiseSource) {
     auto worldPosX = static_cast<float>(x * (size - 1));
     auto worldPosZ = static_cast<float>(z * (size - 1));

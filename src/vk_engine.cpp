@@ -226,6 +226,9 @@ void VulkanEngine::draw() {
     for (const auto& pair : m_terrainRenderables) {
         allRenderables.push_back(pair.second);
     }
+    for (const auto& pair : m_waterRenderables) {
+        allRenderables.push_back(pair.second);
+    }
     drawObjects(cmd, allRenderables.data(), allRenderables.size());
 
 
@@ -1305,6 +1308,8 @@ void VulkanEngine::createPipelines() {
     vk::ShaderModule defaultTexFragShader = loadShaderModule("shaders/textured_lit.frag.spv");
     //Terrain
     vk::ShaderModule defaultTerrainFragShader = loadShaderModule("shaders/terrain_textured_lit.frag.spv");
+    //Water
+    vk::ShaderModule defaultWaterShader = loadShaderModule("shaders/water.frag.spv");
     //Load mesh vertex shader
     vk::ShaderModule meshVertShader = loadShaderModule("shaders/tri_mesh.vert.spv");
     std::cout << "Loaded shaders." << std::endl;
@@ -1423,11 +1428,32 @@ void VulkanEngine::createPipelines() {
     auto terrainPipeline = pipelineBuilder.buildPipeline(m_vkDevice, m_renderPass);
     createMaterial(terrainPipeline, terrainPipelineLayout, "terrain");
 
+    //Water
+    vk::PipelineLayoutCreateInfo waterPipelineInfo = meshPipelineInfo;
+
+    //Water doesn't use texIdx push constant
+    vk::PushConstantRange waterPushConstants[1];
+    waterPushConstants[0] = pushConstantRange;
+    waterPipelineInfo.setPushConstantRanges(waterPushConstants);
+
+    vk::DescriptorSetLayout waterSetLayouts[] = {m_globalDescriptorSetLayout, m_objectDescriptorSetLayout};
+    waterPipelineInfo.setSetLayouts(waterSetLayouts);
+
+    auto waterPipelineLayout = m_vkDevice.createPipelineLayout(waterPipelineInfo);
+    pipelineBuilder.m_shaderStageInfos.clear();
+    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eVertex, meshVertShader));
+    pipelineBuilder.m_shaderStageInfos.push_back(vkinit::pipelineShaderStageCreateInfo(vk::ShaderStageFlagBits::eFragment, defaultWaterShader));
+    pipelineBuilder.m_pipelineLayout = waterPipelineLayout;
+    auto waterPipeline = pipelineBuilder.buildPipeline(m_vkDevice, m_renderPass);
+    createMaterial(waterPipeline, waterPipelineLayout, "water");
+
+
     //Destroy shader modules
     m_vkDevice.destroyShaderModule(meshVertShader);
     m_vkDevice.destroyShaderModule(defaultLitFragShader);
     m_vkDevice.destroyShaderModule(defaultTexFragShader);
     m_vkDevice.destroyShaderModule(defaultTerrainFragShader);
+    m_vkDevice.destroyShaderModule(defaultWaterShader);
 
     //Queue destruction of pipelines
     m_pipelineDeletionQueue.pushFunction([=]() {
@@ -1439,6 +1465,9 @@ void VulkanEngine::createPipelines() {
 
         m_vkDevice.destroyPipeline(terrainPipeline);
         m_vkDevice.destroyPipelineLayout(terrainPipelineLayout);
+
+        m_vkDevice.destroyPipeline(waterPipeline);
+        m_vkDevice.destroyPipelineLayout(waterPipelineLayout);
     });
 }
 
@@ -1809,12 +1838,29 @@ void VulkanEngine::generateTerrainChunk(int x, int z) {
     terrain.textureId = 0;
     m_terrainRenderables[std::make_pair(x, z)] = terrain;
 
+    //Water to go with the terrain
+    Mesh waterMesh;
+    waterMesh.flatPlane(x, z, m_terrainChunkSize);
+    uploadMesh(waterMesh, false);
+    auto waterResult = m_waterMeshes.insert({std::make_pair(x, z), waterMesh});
+    if (!waterResult.second) {
+        std::cout << "Failed to insert water mesh at " << x << ", " << z << std::endl;
+        return;
+    }
+    Mesh * waterMeshPtr = &(waterResult.first->second);
+    RenderObject water = {};
+    water.mesh = waterMeshPtr;
+    water.material = getMaterial("water");
+    water.transformMatrix = glm::translate(glm::vec3{x * (m_terrainChunkSize - 1), 16, z * (m_terrainChunkSize - 1)});
+    m_waterRenderables[std::make_pair(x, z)] = water;
+
     std::cout << "Generated terrain chunk at " << x << ", " << z << std::endl;
 }
 
 void VulkanEngine::deleteTerrainChunk(int x, int z, DeletionQueue& deletionQueue) {
     auto pair = std::make_pair(x, z);
     m_terrainRenderables.erase(pair);
+    m_waterRenderables.erase(pair);
 
     auto it = m_terrainMeshes.find(pair);
     if (it != m_terrainMeshes.end()) {
@@ -1829,6 +1875,21 @@ void VulkanEngine::deleteTerrainChunk(int x, int z, DeletionQueue& deletionQueue
             });
         }
         m_terrainMeshes.erase(it);
+    }
+
+    auto waterIt = m_waterMeshes.find(pair);
+    if (waterIt != m_waterMeshes.end()) {
+        auto vertexBuffer = waterIt->second.vertexBuffer;
+        deletionQueue.pushFunction([=]() {
+            destroyBuffer(vertexBuffer);
+        });
+        if (waterIt->second.indexBuffer.buffer != VK_NULL_HANDLE) {
+            auto indexBuffer = waterIt->second.indexBuffer;
+            deletionQueue.pushFunction([=]() {
+                destroyBuffer(indexBuffer);
+            });
+        }
+        m_waterMeshes.erase(waterIt);
     }
 
     std::cout << "Deleted terrain chunk at " << x << ", " << z << std::endl;

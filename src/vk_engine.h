@@ -269,6 +269,8 @@ private:
     //why are these separate? because everything sucks, that's why
     std::unordered_map<std::pair<int, int>, Mesh, pair_hash> m_terrainMeshes;
     std::unordered_map<std::pair<int, int>, RenderObject, pair_hash> m_terrainRenderables;
+    std::unordered_map<std::pair<int, int>, Mesh, pair_hash> m_waterMeshes;
+    std::unordered_map<std::pair<int, int>, RenderObject, pair_hash> m_waterRenderables;
 
     void generateTerrainChunk(int x, int z);
     void deleteTerrainChunk(int x, int z, DeletionQueue& deletionQueue);
