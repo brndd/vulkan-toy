@@ -5,6 +5,7 @@
 #include <vector>
 #include <glm/vec3.hpp>
 #include <glm/vec2.hpp>
+#include <PerlinNoise.hpp>
 
 struct VertexInputDescription {
     std::vector<vk::VertexInputBindingDescription> bindings;
@@ -29,7 +30,7 @@ struct Mesh {
 
     bool loadFromObj(const char* filename);
     bool loadFromHeightmap(const char* filename);
-    bool sampleFromNoise(int x, int z, int size);
+    bool sampleFromNoise(int x, int z, int size, const siv::PerlinNoise& noiseSource);
 };
 
 

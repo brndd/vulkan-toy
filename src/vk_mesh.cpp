@@ -3,6 +3,7 @@
 #include <iostream>
 #include <stb_image.h>
 #include <glm/glm.hpp>
+#include <PerlinNoise.hpp>
 
 VertexInputDescription Vertex::getVertexDescription() {
     VertexInputDescription description;
@@ -194,23 +195,40 @@ bool Mesh::loadFromHeightmap(const char *filename) {
     return true;
 }
 
-//x and y are the world coordinates at the top left of the chunk, used for sampling the noise
-//size is the size of the chunk in vertices
-bool Mesh::sampleFromNoise(int x, int z, int size) {
-    //For now we'll just create a dummy flat plane
+bool Mesh::sampleFromNoise(int x, int z, int size, const siv::PerlinNoise& noiseSource) {
+    auto worldPosX = static_cast<float>(x * (size - 1));
+    auto worldPosZ = static_cast<float>(z * (size - 1));
+
+    //Lambda to sample noise function at a given coordinate (in mesh space)
+    auto h = [&](float x, float z) -> double {
+        auto world_x = (worldPosX + x) * 0.01;
+        auto world_z = (worldPosZ + z) * 0.01;
+        return static_cast<float>(noiseSource.octave2D_01(world_x, world_z, 4));
+    };
+
     for (int i = 0; i < size; i++) {
         for (int j = 0; j < size; j++) {
+            auto pos_x = static_cast<float>(-size / 2.0f + i);
+            auto pos_z = static_cast<float>(-size / 2.0f + j);
+            float noise = h(pos_x, pos_z);
             Vertex new_vertex;
-            new_vertex.position.x = static_cast<float>(-size / 2.0f + i);
-            new_vertex.position.z = static_cast<float>(-size / 2.0f + j);
-            new_vertex.position.y = 0.0f;
+            new_vertex.position.x = pos_x;
+            new_vertex.position.z = pos_z;
+            new_vertex.position.y = noise * 100.0f;
 
             //UV
             new_vertex.uv.x = static_cast<float>(i) / (size - 1);
             new_vertex.uv.y = static_cast<float>(j) / (size - 1);
 
             //Normals
-            new_vertex.normal = {0.0f, 1.0f, 0.0f};
+            float rh, lh, bh, th;
+            rh = h(pos_x + 1, pos_z);
+            lh = h(pos_x - 1, pos_z);
+            bh = h(pos_x, pos_z + 1);
+            th = h(pos_x, pos_z - 1);
+            glm::vec3 hor = {2.0f, rh - lh, 0.0f};
+            glm::vec3 ver = {0.0f, bh - th, 2.0f};
+            new_vertex.normal = glm::normalize(glm::cross(ver, hor));
 
             this->vertices.push_back(new_vertex);
         }

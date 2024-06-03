@@ -1794,7 +1794,7 @@ void VulkanEngine::loadTextures() {
 
 void VulkanEngine::generateTerrainChunk(int x, int z) {
     Mesh mesh;
-    mesh.sampleFromNoise(x, z, m_terrainChunkSize);
+    mesh.sampleFromNoise(x, z, m_terrainChunkSize, m_noiseSource);
     uploadMesh(mesh, false);
     auto result = m_terrainMeshes.insert({std::make_pair(x, z), mesh});
     if (!result.second) {

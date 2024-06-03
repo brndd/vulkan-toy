@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 #include <chrono>
 #include <functional>
+#include <PerlinNoise.hpp>
 #include "vk_types.h"
 #include "vk_mesh.h"
 #include "camera.h"
@@ -245,7 +246,8 @@ private:
     //
     const int m_terrainRenderDistance = 3;
     const int m_terrainChunkSize = 32;
-    const int m_terrainSeed = 7; //chosen by a fair dice roll. guaranteed to be random.
+    const unsigned int m_terrainSeed = 7u; //chosen by a fair dice roll. guaranteed to be random.
+    const siv::PerlinNoise m_noiseSource{m_terrainSeed};
 
     // https://stackoverflow.com/questions/28367913/how-to-stdhash-an-unordered-stdpair
     struct pair_hash {
