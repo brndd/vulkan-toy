@@ -1,6 +1,13 @@
 # Vulkan toy renderer
 
-This is a Vulkan renderer I created (or am creating) to learn Vulkan.
+This is a Vulkan renderer slash demo that I created for a university project course during which
+I learnt Vulkan from scratch. The code is utterly awful but is posted here for posterity.
+
+What does it do? Renders crude procedurally generated terrain, mostly. It doesn't have any configurable features
+or anything, because implementing those would've been extra work that wouldn't have really contributed towards
+my progress on the course.
+
+![Screenshot of the renderer](example.png)
 
 # Dependencies
 
